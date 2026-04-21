@@ -1,4 +1,7 @@
 /**
+ * GET /api/tracks
+ * List all registered tracks (public catalog)
+ *
  * POST /api/tracks
  * Register a music work as an IP Asset
  *
@@ -21,6 +24,37 @@ import { uploadJSON, uploadFile, hashFile } from '@/lib/ipfs/pinata'
 import { MusicIPMetadataSchema, createMusicIPMetadata } from '@/lib/license/schema'
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
+
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = await createServerSupabaseClient()
+
+    // Fetch all registered tracks (public catalog)
+    const { data: tracks, error } = await supabase
+      .from('tracks')
+      .select('*')
+      .eq('registration_status', 'registered')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('[tracks-list] Error:', error)
+      return NextResponse.json(
+        { error: 'Failed to fetch tracks' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({
+      tracks: tracks || [],
+    })
+  } catch (error) {
+    console.error('[tracks-list] Unexpected error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
