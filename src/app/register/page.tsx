@@ -1,6 +1,7 @@
 'use client'
 
 import { useRequireAuth } from '@/lib/hooks/useAuthedUser'
+import { TrackUploadForm } from '@/components/track-upload-form'
 
 export default function RegisterPage() {
   const { user, isLoading } = useRequireAuth()
@@ -23,22 +24,15 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-black text-white py-12 px-4">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-4xl font-bold mb-8">Register Your Music</h1>
-
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-8">
-          <p className="text-gray-400 mb-4">
-            Welcome, <span className="text-white font-semibold">{user.world_username || user.world_wallet_address.slice(0, 10) + '...'}</span>
+      <div className="max-w-3xl mx-auto">
+        <div className="mb-12">
+          <h1 className="text-4xl font-bold mb-2">Register Your Music</h1>
+          <p className="text-gray-400">
+            Welcome, <span className="font-semibold">{user.world_username || user.world_wallet_address.slice(0, 10) + '...'}</span>
           </p>
-          <p className="text-gray-400 mb-6">
-            Register your original music as an IP Asset on Story Protocol with machine-readable license terms.
-          </p>
-
-          {/* Track upload form will go here (Task 3.1) */}
-          <div className="bg-gray-800/50 border border-gray-700 rounded p-6 text-center">
-            <p className="text-gray-400">Track upload form coming next...</p>
-          </div>
         </div>
+
+        <TrackUploadForm userId={user.id} username={user.world_username} />
       </div>
     </div>
   )
