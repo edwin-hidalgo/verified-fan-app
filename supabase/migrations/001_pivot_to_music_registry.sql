@@ -1,28 +1,30 @@
 -- Migration: Pivot from Spotify fan profiles to World ID music registry
 -- This migration renames existing Spotify tables and creates the new music registry schema
 
--- Step 1: Rename old tables to archive Spotify data
+-- Step 1: Drop old RLS policies first (before renaming tables)
+DROP POLICY IF EXISTS "users_select_own" ON users;
+DROP POLICY IF EXISTS "users_update_own" ON users;
+DROP POLICY IF EXISTS "users_insert_own" ON users;
+
+-- Step 2: Rename old tables to archive Spotify data
+-- Only rename tables that need renaming (spotify_saved_tracks and spotify_top_artists are already named)
 ALTER TABLE IF EXISTS verified_fan_scores RENAME TO spotify_verified_fan_scores;
-ALTER TABLE IF EXISTS spotify_saved_tracks RENAME TO spotify_saved_tracks;
-ALTER TABLE IF EXISTS spotify_top_artists RENAME TO spotify_top_artists;
 ALTER TABLE IF EXISTS users RENAME TO spotify_users;
 
--- Drop old RLS policies (they reference the old table names)
-DROP POLICY IF EXISTS "users_select_own" ON spotify_users;
-DROP POLICY IF EXISTS "users_update_own" ON spotify_users;
-DROP POLICY IF EXISTS "users_insert_own" ON spotify_users;
-
--- Update foreign key references in renamed tables
-ALTER TABLE spotify_top_artists DROP CONSTRAINT IF EXISTS spotify_top_artists_user_id_fkey;
-ALTER TABLE spotify_top_artists ADD CONSTRAINT spotify_top_artists_user_id_fkey
+-- Step 3: Update foreign key references in renamed tables
+-- spotify_top_artists references users
+ALTER TABLE IF EXISTS spotify_top_artists DROP CONSTRAINT IF EXISTS spotify_top_artists_user_id_fkey;
+ALTER TABLE IF EXISTS spotify_top_artists ADD CONSTRAINT spotify_top_artists_user_id_fkey
   FOREIGN KEY (user_id) REFERENCES spotify_users(id) ON DELETE CASCADE;
 
-ALTER TABLE spotify_saved_tracks DROP CONSTRAINT IF EXISTS spotify_saved_tracks_user_id_fkey;
-ALTER TABLE spotify_saved_tracks ADD CONSTRAINT spotify_saved_tracks_user_id_fkey
+-- spotify_saved_tracks references users
+ALTER TABLE IF EXISTS spotify_saved_tracks DROP CONSTRAINT IF EXISTS spotify_saved_tracks_user_id_fkey;
+ALTER TABLE IF EXISTS spotify_saved_tracks ADD CONSTRAINT spotify_saved_tracks_user_id_fkey
   FOREIGN KEY (user_id) REFERENCES spotify_users(id) ON DELETE CASCADE;
 
-ALTER TABLE spotify_verified_fan_scores DROP CONSTRAINT IF EXISTS verified_fan_scores_user_id_fkey;
-ALTER TABLE spotify_verified_fan_scores ADD CONSTRAINT spotify_verified_fan_scores_user_id_fkey
+-- spotify_verified_fan_scores references users
+ALTER TABLE IF EXISTS spotify_verified_fan_scores DROP CONSTRAINT IF EXISTS verified_fan_scores_user_id_fkey;
+ALTER TABLE IF EXISTS spotify_verified_fan_scores ADD CONSTRAINT spotify_verified_fan_scores_user_id_fkey
   FOREIGN KEY (user_id) REFERENCES spotify_users(id) ON DELETE CASCADE;
 
 -- Step 2: Create new users table (World ID + music registry)
