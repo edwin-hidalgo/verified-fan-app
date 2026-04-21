@@ -27,13 +27,21 @@ export default function VerifyPage() {
         return
       }
 
-      // Call MiniKit verification
+      // Call MiniKit verification (music registry action)
       const response = await MiniKit.commandsAsync.verify({
-        action: process.env.NEXT_PUBLIC_WORLD_APP_ACTION_ID || 'verify-listen',
+        action: process.env.NEXT_PUBLIC_WORLD_APP_ACTION_ID || 'register-work',
       })
 
       if (!response.success) {
         setError(response.error?.message || 'Verification failed. Please try again.')
+        setIsLoading(false)
+        return
+      }
+
+      // Get user's wallet address from MiniKit wallet context
+      const walletResponse = await MiniKit.commandsAsync.walletAuth({})
+      if (!walletResponse.success || !walletResponse.wallet_address) {
+        setError('Could not retrieve wallet address.')
         setIsLoading(false)
         return
       }
@@ -44,8 +52,8 @@ export default function VerifyPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           payload: response,
-          action: process.env.NEXT_PUBLIC_WORLD_APP_ACTION_ID,
-          signal: response.signal,
+          world_wallet_address: walletResponse.wallet_address,
+          world_username: walletResponse.wallet_address?.slice(0, 10), // Placeholder, can be updated later
         }),
       })
 
@@ -58,18 +66,19 @@ export default function VerifyPage() {
 
       const verifyData = await verifyResponse.json()
 
-      // Store verification data in localStorage (client-side access)
-      localStorage.setItem('world_id_hash', verifyData.worldIdHash)
+      // Store user data in localStorage for useAuthedUser hook
       localStorage.setItem('user_id', verifyData.userId)
-      localStorage.setItem('is_verified', 'true')
+      localStorage.setItem(
+        'user_data',
+        JSON.stringify({
+          world_wallet_address: verifyData.walletAddress,
+          world_username: verifyData.username,
+          orb_verified: verifyData.orbVerified,
+        })
+      )
 
-      // Also store user_id in a regular cookie so the callback page (server component) can access it
-      document.cookie = `user_id=${verifyData.userId}; path=/; max-age=${60 * 60 * 24}`
-
-      // With the new flow, users connect Spotify first, so we always have spotify_token at this point
-      // Just redirect to profile — the profile will refetch data with the user_id now being verified
-      console.log('[verify] Verification succeeded, redirecting to /profile')
-      router.push('/profile')
+      console.log('[verify] Verification succeeded, redirecting to /register')
+      router.push('/register')
     } catch (err) {
       console.error('World ID verification error:', err)
       setError(err instanceof Error ? err.message : 'An error occurred during verification.')
@@ -79,12 +88,17 @@ export default function VerifyPage() {
 
   const handleDevModeVerification = async () => {
     try {
+      // Generate mock wallet address for dev mode
+      const mockWallet = `0x${Math.random().toString(16).slice(2, 42)}`
+
       // Call backend to create user with mock World ID hash
       const response = await fetch('/api/world/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          payload: { nullifier_hash: null },
+          payload: { nullifier_hash: `dev_${Date.now()}_${Math.random().toString(36).substring(2)}` },
+          world_wallet_address: mockWallet,
+          world_username: 'dev_creator',
         }),
       })
 
@@ -97,42 +111,19 @@ export default function VerifyPage() {
 
       const data = await response.json()
 
-      // Store verification data in localStorage (client-side access)
-      localStorage.setItem('world_id_hash', data.worldIdHash)
+      // Store user data in localStorage for useAuthedUser hook
       localStorage.setItem('user_id', data.userId)
-      localStorage.setItem('is_verified', 'true')
+      localStorage.setItem(
+        'user_data',
+        JSON.stringify({
+          world_wallet_address: data.walletAddress,
+          world_username: data.username,
+          orb_verified: data.orbVerified,
+        })
+      )
 
-      // Also store user_id in a regular cookie so the callback page (server component) can access it
-      document.cookie = `user_id=${data.userId}; path=/; max-age=${60 * 60 * 24}`
-
-      // Check if user already has Spotify token (connected before verification)
-      const spotifyTokenStr = localStorage.getItem('spotify_token')
-      if (spotifyTokenStr) {
-        try {
-          const spotifyToken = JSON.parse(spotifyTokenStr)
-          // Trigger data pipeline now that user is verified
-          const pipelineResponse = await fetch('/api/fan-score', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userId: data.userId,
-              accessToken: spotifyToken.accessToken,
-            }),
-          })
-
-          if (pipelineResponse.ok) {
-            // Pipeline succeeded - go to profile
-            router.push('/profile')
-            return
-          }
-        } catch (err) {
-          console.error('Failed to trigger data pipeline:', err)
-          // Fall through to redirect to connect
-        }
-      }
-
-      // No Spotify token yet - redirect to connect Spotify
-      router.push('/connect')
+      console.log('[verify] Dev mode verification succeeded, redirecting to /register')
+      router.push('/register')
     } catch (err) {
       console.error('Dev mode verification error:', err)
       setError(err instanceof Error ? err.message : 'Dev mode verification failed.')
@@ -146,17 +137,17 @@ export default function VerifyPage() {
         {/* Heading */}
         <div className="space-y-4">
           <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">
-            Verify you're human.
+            Verify as a Creator
           </h1>
           <p className="text-xl text-gray-300">
-            One-time verification with World ID.
+            Prove your humanity to register music IP Assets.
           </p>
         </div>
 
         {/* Description */}
         <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-6 max-w-sm">
           <p className="text-gray-300 leading-relaxed">
-            World ID proves you're a unique human without revealing who you are. Quick, private, and works everywhere.
+            Use World ID to verify you're a unique human creator. Your identity proves only verified humans can register music in this protocol.
           </p>
         </div>
 

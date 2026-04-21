@@ -115,10 +115,27 @@ export async function POST(request: NextRequest) {
     const userId = data.id
     console.log('[world-verify] User verified/created:', userId)
 
+    // Fetch full user data to return to client
+    const { data: fullUser, error: fetchError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single()
+
+    if (fetchError) {
+      console.error('[world-verify] Error fetching user data:', fetchError)
+      return NextResponse.json(
+        { error: 'Failed to fetch user data' },
+        { status: 500 }
+      )
+    }
+
     return NextResponse.json({
       success: true,
-      userId,
-      walletAddress,
+      userId: fullUser.id,
+      walletAddress: fullUser.world_wallet_address,
+      username: fullUser.world_username,
+      orbVerified: fullUser.orb_verified,
     })
   } catch (error) {
     console.error('[world-verify] Verification error:', error)
