@@ -4,7 +4,7 @@ import { MiniKit } from '@worldcoin/minikit-js'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-export default function VerifyPage() {
+export default function VerifyListenerPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -40,7 +40,7 @@ export default function VerifyPage() {
       // Call MiniKit walletAuth with nonce for SIWE flow
       const walletResult = await MiniKit.walletAuth({
         nonce,
-        statement: 'Sign in to verify your humanity and register music on the protocol.',
+        statement: 'Sign in to verify as a listener and track your music engagement.',
       })
 
       if (!walletResult.data || !('address' in walletResult.data)) {
@@ -55,7 +55,7 @@ export default function VerifyPage() {
       const orbVerified = MiniKit.user?.verificationStatus?.isOrbVerified || false
 
       // Send wallet auth proof to backend for verification
-      const verifyResponse = await fetch('/api/world/verify', {
+      const verifyResponse = await fetch('/api/world/verify-listener', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -63,7 +63,7 @@ export default function VerifyPage() {
           message,
           signature,
           orb_verified: orbVerified,
-          username: MiniKit.user?.username || 'creator',
+          username: MiniKit.user?.username || 'listener',
         }),
       })
 
@@ -76,10 +76,10 @@ export default function VerifyPage() {
 
       const verifyData = await verifyResponse.json()
 
-      // Store user data in localStorage
-      localStorage.setItem('user_id', verifyData.userId)
+      // Store listener data in localStorage
+      localStorage.setItem('listener_id', verifyData.userId)
       localStorage.setItem(
-        'user_data',
+        'listener_data',
         JSON.stringify({
           world_wallet_address: verifyData.walletAddress,
           world_username: verifyData.username,
@@ -87,8 +87,8 @@ export default function VerifyPage() {
         })
       )
 
-      console.log('[verify] World ID verification succeeded, redirecting to /register')
-      router.push('/register')
+      console.log('[verify-listener] World ID verification succeeded, redirecting to /catalog')
+      router.push('/catalog')
     } catch (err) {
       console.error('World ID verification error:', err)
       setError(err instanceof Error ? err.message : 'An error occurred during verification.')
@@ -102,7 +102,7 @@ export default function VerifyPage() {
       const mockWallet = `0x${Math.random().toString(16).slice(2, 42)}`
 
       // Call backend with mock SIWE data
-      const response = await fetch('/api/world/verify', {
+      const response = await fetch('/api/world/verify-listener', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -110,7 +110,7 @@ export default function VerifyPage() {
           message: `dev_mode_message_${Date.now()}`,
           signature: `0x${'0'.repeat(130)}`, // Fake 65-byte signature
           orb_verified: true,
-          username: 'dev_creator',
+          username: 'dev_listener',
           devMode: true, // Flag to skip signature verification
         }),
       })
@@ -124,10 +124,10 @@ export default function VerifyPage() {
 
       const data = await response.json()
 
-      // Store user data in localStorage
-      localStorage.setItem('user_id', data.userId)
+      // Store listener data in localStorage
+      localStorage.setItem('listener_id', data.userId)
       localStorage.setItem(
-        'user_data',
+        'listener_data',
         JSON.stringify({
           world_wallet_address: data.walletAddress,
           world_username: data.username,
@@ -135,8 +135,8 @@ export default function VerifyPage() {
         })
       )
 
-      console.log('[verify] Dev mode verification succeeded, redirecting to /register')
-      router.push('/register')
+      console.log('[verify-listener] Dev mode verification succeeded, redirecting to /catalog')
+      router.push('/catalog')
     } catch (err) {
       console.error('Dev mode verification error:', err)
       setError(err instanceof Error ? err.message : 'Dev mode verification failed.')
@@ -150,17 +150,17 @@ export default function VerifyPage() {
         {/* Heading */}
         <div className="space-y-4">
           <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">
-            Verify as a Creator
+            Verify as a Listener
           </h1>
           <p className="text-xl text-gray-300">
-            Prove your humanity to register music IP Assets.
+            Prove your humanity to see verified play counts and support verified creators.
           </p>
         </div>
 
         {/* Description */}
         <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-6 max-w-sm">
           <p className="text-gray-300 leading-relaxed">
-            Use World ID to verify you're a unique human creator. Your wallet address is tied to your World ID identity.
+            When you verify with World ID, every song you play is recorded as a provably unique human listen. Help creators see real engagement.
           </p>
         </div>
 
@@ -180,6 +180,28 @@ export default function VerifyPage() {
         >
           {isLoading ? 'Verifying...' : 'Verify with World ID'}
         </button>
+
+        {/* Alternative links */}
+        <div className="pt-4 border-t border-gray-800 w-full max-w-sm space-y-3 text-sm">
+          <p className="text-gray-500">
+            Want to register music instead?{' '}
+            <button
+              onClick={() => router.push('/verify')}
+              className="text-white hover:underline font-semibold"
+            >
+              Verify as Creator
+            </button>
+          </p>
+          <p className="text-gray-500">
+            Just browsing?{' '}
+            <button
+              onClick={() => router.push('/catalog')}
+              className="text-white hover:underline font-semibold"
+            >
+              View Catalog (Unverified)
+            </button>
+          </p>
+        </div>
 
         {/* Dev mode bypass */}
         {devMode && (

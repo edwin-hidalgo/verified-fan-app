@@ -1,7 +1,8 @@
 import 'server-only'
 
-import { getStoryClient } from './client'
+import { getStoryClient, getServiceWalletAddress } from './client'
 import { MusicIPMetadata } from '../license/schema'
+import { uploadJSON } from '../ipfs/pinata'
 import { PILFlavor } from '@story-protocol/core-sdk'
 import { Address } from 'viem'
 
@@ -45,51 +46,91 @@ export async function registerMusicIP(
 
     // Build PIL terms based on license configuration
     const pilTerms = buildPILTerms(metadata)
+    console.log('[story-register] PIL terms built:', pilTerms)
 
-    // Register IP Asset with license terms
-    // This is the modern unified entry point that handles both minting and registration
-    const result = await client.ipAsset.registerIpAsset({
-      nft: {
-        type: 'mint',
-        spgNftContract: spgNftContract,
-        recipient: recipient || (client.account?.address as Address),
-      },
-      ipMetadata: {
-        title: metadata.work.title,
-        description: `Music registered by ${metadata.creator.world_username || 'verified creator'}`,
-        watermarkURI: '',
-        attributes: [
-          {
-            key: 'isrc',
-            value: metadata.work.isrc || 'N/A',
-          },
-          {
-            key: 'genre',
-            value: metadata.work.genre || 'N/A',
-          },
-          {
-            key: 'ai_training_allowed',
-            value: metadata.license_terms.ai_training_allowed ? 'yes' : 'no',
-          },
-        ],
-      },
-      // Attach PIL terms to the IP Asset
-      licenseTermsData: [
+    // Get service wallet address for NFT recipient
+    const walletAddress = getServiceWalletAddress()
+    console.log('[story-register] Service wallet address:', walletAddress)
+    console.log('[story-register] SPG NFT contract:', spgNftContract)
+
+    const nftRecipient = recipient || (walletAddress as Address)
+    console.log('[story-register] NFT recipient:', nftRecipient)
+
+    // Register IP Asset with PIL terms attached
+    // Upload metadata to IPFS first
+    console.log('[story-register] Uploading metadata to IPFS')
+    const ipfsMetadata = {
+      title: metadata.work.title,
+      description: `Music registered by ${metadata.creator.world_username || 'verified creator'}`,
+      attributes: [
         {
-          terms: pilTerms,
+          key: 'isrc',
+          value: metadata.work.isrc || 'N/A',
+        },
+        {
+          key: 'genre',
+          value: metadata.work.genre || 'N/A',
+        },
+        {
+          key: 'ai_origin',
+          value: metadata.work.ai_origin,
+        },
+        {
+          key: 'ai_training_allowed',
+          value: metadata.license_terms.ai_training_allowed ? 'yes' : 'no',
         },
       ],
+    }
+
+    const ipfsMetadataHash = await uploadJSON(ipfsMetadata)
+    const ipfsMetadataURI = `ipfs://${ipfsMetadataHash}`
+    console.log('[story-register] Metadata uploaded to IPFS:', ipfsMetadataURI)
+
+    console.log('[story-register] Calling registerIpAsset with PIL terms')
+    console.log('[story-register] Full registration payload:', {
+      nft: {
+        type: 'mint',
+        spgNftContract,
+        recipient: nftRecipient,
+      },
+      ipMetadataURI: ipfsMetadataURI,
+      licenseTermsData: [{ terms: pilTerms }],
     })
+
+    let result
+    try {
+      result = await client.ipAsset.registerIpAsset({
+        nft: {
+          type: 'mint',
+          spgNftContract: spgNftContract,
+          recipient: nftRecipient,
+        },
+        ipMetadataURI: ipfsMetadataURI,
+        // Attach PIL terms to the IP Asset
+        licenseTermsData: [
+          {
+            terms: pilTerms,
+          },
+        ],
+      })
+    } catch (registrationError) {
+      console.error('[story-register] Registration call failed:', registrationError)
+      console.error('[story-register] Error details:', {
+        message: registrationError instanceof Error ? registrationError.message : String(registrationError),
+        stack: registrationError instanceof Error ? registrationError.stack : undefined,
+      })
+      throw registrationError
+    }
 
     console.log('[story-register] IP registered successfully')
     console.log('[story-register] IP ID:', result.ipId)
-    console.log('[story-register] License Terms ID:', result.licenseTermsId)
+    console.log('[story-register] License Terms IDs:', result.licenseTermsIds)
     console.log('[story-register] TX Hash:', result.txHash)
 
     return {
-      ipId: result.ipId,
-      licenseTermsId: result.licenseTermsId || '0',
-      txHash: result.txHash,
+      ipId: result.ipId || '',
+      licenseTermsId: result.licenseTermsIds?.[0] ? String(result.licenseTermsIds[0]) : '0',
+      txHash: result.txHash || '',
     }
   } catch (error) {
     console.error('[story-register] Registration failed:', error)
@@ -101,32 +142,35 @@ export async function registerMusicIP(
  * Build PIL (Programmable IP License) terms from music license configuration
  *
  * PIL Flavors provide pre-configured license templates:
- * - nonCommercialSocialRemixing: Free remixing with attribution
- * - commercialUse: Paid use, requires attribution
- * - commercialRemix: Paid use + revenue sharing, allows remixes
+ * - nonCommercialSocialRemixing: Free remixing with attribution (no currency needed)
+ * - commercialUse: Paid use, requires currency contract
+ * - commercialRemix: Paid use + revenue sharing, requires currency contract
  *
- * For our music registry, we use commercialRemix as the base since it's most flexible
+ * For hackathon, we use nonCommercialSocialRemixing as it doesn't require currency setup.
+ * In production with actual payments, we'd use commercialRemix with a proper currency contract.
  */
 function buildPILTerms(metadata: MusicIPMetadata) {
   const { license_terms: terms } = metadata
 
-  // Start with commercial remix flavor (most flexible)
-  // This allows paid licensing with revenue sharing
-  let pil = PILFlavor.commercialRemix({
-    defaultMintingFee: 0n, // Hackathon: no fee for minting license tokens
-    commercialRevShare: terms.commercial_use_revenue_share_pct || 0,
-    // Currency would be set to IP or WIP token address in production
-    // For now, we skip it to use default
-  })
+  // For hackathon: use non-commercial social remixing (free, no currency needed)
+  // This allows anyone to remix non-commercially with proper attribution
+  // The actual licensing restrictions (AI training, sync, commercial) are stored
+  // in the ipMetadata attributes and enforced at the application level
+  let pil = PILFlavor.nonCommercialSocialRemixing()
+
+  console.log('[story-register] Using nonComSocialRemixing PIL flavor for hackathon')
 
   // In production, we would:
-  // 1. Check if AI training is allowed and set custom terms
-  // 2. Use registerPILTerms() to create custom license combinations
-  // 3. Attach multiple PIL terms for different use cases
+  // 1. Set up a currency contract (USDC, IP token, etc)
+  // 2. Use commercialRemix flavor with proper payment terms
+  // 3. Check if AI training is allowed and set custom terms
+  // 4. Use registerPILTerms() to create custom license combinations
+  // 5. Attach multiple PIL terms for different use cases
   //
-  // For MVP, we use the pre-built commercial remix flavor
-  // The actual AI training restrictions would be enforced at the application level
-  // by checking metadata.license_terms.ai_training_allowed before allowing training use
+  // For this MVP, actual licensing restrictions are:
+  // - Stored immutably in ipMetadata.attributes (ai_origin, ai_training_allowed, etc)
+  // - Enforced at the application level by the catalog/API (checking metadata before allowing use)
+  // - Story Protocol provides the immutable on-chain proof of creation + attribution
 
   return pil
 }

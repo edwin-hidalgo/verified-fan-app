@@ -16,6 +16,8 @@ interface Track {
   audio_file_hash: string
   isrc: string
   release_date: string
+  ai_origin: 'human' | 'ai_assisted' | 'ai_generated'
+  play_count: number
   splits: any[]
   ai_training_allowed: boolean
   ai_training_price_usd: number | null
@@ -46,6 +48,7 @@ export default function TrackDetailPage() {
   const [creator, setCreator] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [localPlayCount, setLocalPlayCount] = useState<number | null>(null)
 
   useEffect(() => {
     const fetchTrack = async () => {
@@ -70,6 +73,32 @@ export default function TrackDetailPage() {
       fetchTrack()
     }
   }, [trackId])
+
+  const recordPlay = async () => {
+    if (!track) return
+    const userId = localStorage.getItem('user_id')
+    if (!userId) return // Only record plays for authenticated users
+
+    try {
+      const response = await fetch(`/api/tracks/${track.id}/play`, {
+        method: 'POST',
+        headers: {
+          'x-user-id': userId,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setLocalPlayCount(data.playCount)
+        // Update track with new play count
+        setTrack((prev) =>
+          prev ? { ...prev, play_count: data.playCount } : null
+        )
+      }
+    } catch (error) {
+      console.error('[track-detail] Failed to record play:', error)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -120,6 +149,7 @@ export default function TrackDetailPage() {
                 src={track.audio_file_url}
                 controls
                 className="w-full mb-6"
+                onPlay={recordPlay}
               />
 
               {/* Track Info */}
@@ -127,6 +157,17 @@ export default function TrackDetailPage() {
                 <div>
                   <p className="text-gray-400 text-sm mb-1">Title</p>
                   <h1 className="text-4xl font-bold">{track.title}</h1>
+                </div>
+
+                {/* Verified Play Counter */}
+                <div className="bg-green-600/10 border border-green-600/30 rounded p-4">
+                  <p className="text-xs text-green-400 font-semibold mb-1">VERIFIED HUMAN LISTENS</p>
+                  <p className="text-3xl font-bold text-green-400">
+                    {localPlayCount ?? track.play_count ?? 0}
+                  </p>
+                  <p className="text-xs text-green-300 mt-1">
+                    {localPlayCount ?? track.play_count ?? 0} verified {(localPlayCount ?? track.play_count) === 1 ? 'human' : 'humans'} have played this track
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -172,6 +213,19 @@ export default function TrackDetailPage() {
                     <p className="font-semibold">{new Date(track.release_date).toLocaleDateString()}</p>
                   </div>
                 )}
+
+                <div>
+                  <p className="text-gray-400 text-sm mb-2">Creation Method</p>
+                  <span className={`px-3 py-1 rounded text-sm font-semibold ${
+                    track.ai_origin === 'human' ? 'bg-green-600/20 text-green-400' :
+                    track.ai_origin === 'ai_assisted' ? 'bg-yellow-600/20 text-yellow-400' :
+                    'bg-purple-600/20 text-purple-400'
+                  }`}>
+                    {track.ai_origin === 'human' && 'Fully Human-Created'}
+                    {track.ai_origin === 'ai_assisted' && 'AI-Assisted'}
+                    {track.ai_origin === 'ai_generated' && 'AI-Generated'}
+                  </span>
+                </div>
               </div>
             </Card>
 

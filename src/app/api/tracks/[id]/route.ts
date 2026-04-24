@@ -8,12 +8,14 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const trackId = params.id
+    const { id: trackId } = await params
+    console.log('[tracks-get] Fetching track:', trackId)
 
     if (!trackId) {
+      console.log('[tracks-get] No trackId provided')
       return NextResponse.json(
         { error: 'Track ID required' },
         { status: 400 }
@@ -23,16 +25,19 @@ export async function GET(
     const supabase = await createServerSupabaseClient()
 
     // Fetch track
+    console.log('[tracks-get] Querying Supabase for track')
     const { data: track, error: trackError } = await supabase
       .from('tracks')
       .select('*')
       .eq('id', trackId)
       .single()
 
+    console.log('[tracks-get] Query result:', { track, trackError })
+
     if (trackError || !track) {
       console.error('[tracks-get] Track not found:', trackError)
       return NextResponse.json(
-        { error: 'Track not found' },
+        { error: 'Track not found', details: trackError?.message },
         { status: 404 }
       )
     }

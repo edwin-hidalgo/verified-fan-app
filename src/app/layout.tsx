@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { MiniKitProvider } from '@/components/MiniKitProvider'
+import Header from '@/components/Header'
 import './globals.css'
 
 const geistSans = Geist({
@@ -14,9 +15,9 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Verified Fan — Prove Your Fandom',
+  title: 'ekos — Music Trust Layer for the AI Era',
   description:
-    'Connect your Spotify, verify you\'re human with World ID, and show artists who your real fans are.',
+    'Register music with on-chain provenance and verified engagement. Eradicate streaming fraud. Licensed by verified humans.',
   metadataBase: new URL('http://localhost:3000'),
 }
 
@@ -32,7 +33,10 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-background text-foreground" suppressHydrationWarning>
         <MiniKitProvider>
-          {children}
+          <Header />
+          <main className="flex-1">
+            {children}
+          </main>
         </MiniKitProvider>
       </body>
     </html>

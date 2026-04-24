@@ -58,19 +58,45 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Parse request
-    const formData = await request.formData()
-    const audioFile = formData.get('audio_file') as File
-    const metadataJson = formData.get('metadata') as string
+    // Parse request - support both multipart (audio_file) and JSON (audio_url)
+    let audioFile: File | null = null
+    let audioUrl: string | null = null
+    let metadataJson: string
+    let fileName: string = 'unknown'
 
-    if (!audioFile || !metadataJson) {
-      return NextResponse.json(
-        { error: 'Missing audio_file or metadata' },
-        { status: 400 }
-      )
+    const contentType = request.headers.get('content-type') || ''
+
+    if (contentType.includes('application/json')) {
+      // JSON request with audio_url
+      const body = await request.json()
+      audioUrl = body.audio_url
+      metadataJson = JSON.stringify(body.metadata)
+      fileName = body.metadata?.title || 'moment'
+
+      if (!audioUrl || !metadataJson) {
+        return NextResponse.json(
+          { error: 'Missing audio_url or metadata' },
+          { status: 400 }
+        )
+      }
+
+      console.log('[tracks-api] Processing moment creation with audio_url:', audioUrl)
+    } else {
+      // Multipart form data with audio_file
+      const formData = await request.formData()
+      audioFile = formData.get('audio_file') as File
+      metadataJson = formData.get('metadata') as string
+      fileName = audioFile?.name || 'unknown'
+
+      if (!audioFile || !metadataJson) {
+        return NextResponse.json(
+          { error: 'Missing audio_file or metadata' },
+          { status: 400 }
+        )
+      }
+
+      console.log('[tracks-api] Processing track upload:', fileName)
     }
-
-    console.log('[tracks-api] Processing track upload:', audioFile.name)
 
     // Get authenticated user from header
     const userId = request.headers.get('x-user-id')
@@ -103,18 +129,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid metadata JSON' }, { status: 400 })
     }
 
-    // Convert audio file to buffer
-    const audioBuffer = Buffer.from(await audioFile.arrayBuffer())
-    const audioHash = await hashFile(audioBuffer)
+    // Get audio buffer (either from uploaded file or from URL)
+    let audioBuffer: Buffer
+    let audioContentType: string = 'audio/mpeg'
 
+    if (audioFile) {
+      // From uploaded file
+      audioBuffer = Buffer.from(await audioFile.arrayBuffer())
+      audioContentType = audioFile.type || 'audio/mpeg'
+    } else if (audioUrl) {
+      // Download from URL (Replicate audio output)
+      console.log('[tracks-api] Downloading audio from URL:', audioUrl)
+      const response = await fetch(audioUrl)
+      if (!response.ok) {
+        throw new Error(`Failed to download audio from URL: ${response.statusText}`)
+      }
+      audioBuffer = Buffer.from(await response.arrayBuffer())
+      audioContentType = response.headers.get('content-type') || 'audio/mpeg'
+    } else {
+      throw new Error('No audio source provided')
+    }
+
+    const audioHash = await hashFile(audioBuffer)
     console.log('[tracks-api] Audio file hash:', audioHash)
 
     // Upload audio file to Supabase Storage
-    const audioFileName = `${Date.now()}-${audioFile.name}`
+    const audioFileName = `${Date.now()}-${fileName}`
     const { error: uploadError } = await supabase.storage
       .from('audio-files')
       .upload(audioFileName, audioBuffer, {
-        contentType: audioFile.type,
+        contentType: audioContentType,
         upsert: false,
       })
 
@@ -143,6 +187,7 @@ export async function POST(request: NextRequest) {
         duration_seconds: trackData.duration_seconds,
         genre: trackData.genre,
         release_date: trackData.release_date,
+        ai_origin: trackData.ai_origin || 'human',
       },
       creator: {
         world_wallet_address: userData.world_wallet_address,
@@ -190,6 +235,7 @@ export async function POST(request: NextRequest) {
         audio_file_url: publicUrl,
         audio_file_hash: audioHash,
         splits: trackData.splits || [],
+        ai_origin: trackData.ai_origin || 'human',
         ai_training_allowed: trackData.ai_training_allowed || false,
         ai_training_price_usd: trackData.ai_training_price_usd || null,
         sync_allowed: trackData.sync_allowed || false,
@@ -213,6 +259,31 @@ export async function POST(request: NextRequest) {
     const trackId = trackRecord.id
 
     console.log('[tracks-api] Track record created:', trackId)
+
+    // Check if running in dev mode (skip Story registration)
+    const devMode = process.env.NEXT_PUBLIC_DEV_MODE === 'true'
+
+    if (devMode) {
+      console.log('[tracks-api] DEV_MODE enabled - skipping Story Protocol registration')
+
+      // Mark as registered anyway for demo purposes
+      await supabase
+        .from('tracks')
+        .update({
+          registration_status: 'registered',
+        })
+        .eq('id', trackId)
+
+      return NextResponse.json({
+        success: true,
+        trackId,
+        ipId: 'dev-mode-mock-' + trackId,
+        txHash: '0x' + 'dev'.repeat(32),
+        metadataCid: ipfsMetadataCid,
+        note: 'DEV_MODE: Story Protocol registration skipped',
+      })
+    }
+
     console.log('[tracks-api] Registering IP Asset on Story Protocol...')
 
     // Register IP Asset on Story Protocol

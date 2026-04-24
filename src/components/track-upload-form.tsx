@@ -13,9 +13,10 @@ interface TrackFormData {
   // Step 1: Basics
   title: string
   artist_name: string
+  ai_origin: 'human' | 'ai_assisted' | 'ai_generated'
   genre: string
   release_date: string
-  duration_seconds: number
+  duration_seconds: number | null
   isrc: string
   audio_file: File | null
 
@@ -45,9 +46,10 @@ export function TrackUploadForm({ userId, username }: TrackUploadFormProps) {
   const [formData, setFormData] = useState<TrackFormData>({
     title: '',
     artist_name: username || '',
+    ai_origin: 'human',
     genre: '',
     release_date: '',
-    duration_seconds: 0,
+    duration_seconds: null,
     isrc: '',
     audio_file: null,
     splits: [],
@@ -93,19 +95,6 @@ export function TrackUploadForm({ userId, username }: TrackUploadFormProps) {
         }
         return true
       case 2:
-        // Splits are optional
-        for (const split of formData.splits) {
-          if (!split.recipient.startsWith('0x')) {
-            setError('Invalid wallet address in splits')
-            return false
-          }
-          if (split.percentage < 0 || split.percentage > 100) {
-            setError('Split percentage must be between 0-100')
-            return false
-          }
-        }
-        return true
-      case 3:
         // License terms validation
         if (formData.ai_training_allowed && !formData.ai_training_price_usd) {
           setError('Set a price for AI training license')
@@ -156,10 +145,11 @@ export function TrackUploadForm({ userId, username }: TrackUploadFormProps) {
         JSON.stringify({
           title: formData.title,
           artist_name: formData.artist_name,
-          genre: formData.genre,
-          release_date: formData.release_date,
-          duration_seconds: formData.duration_seconds,
-          isrc: formData.isrc,
+          ai_origin: formData.ai_origin,
+          genre: formData.genre || undefined,
+          release_date: formData.release_date || undefined,
+          duration_seconds: formData.duration_seconds || undefined,
+          isrc: formData.isrc || undefined,
           splits: formData.splits,
           ai_training_allowed: formData.ai_training_allowed,
           ai_training_price_usd: formData.ai_training_price_usd,
@@ -201,7 +191,7 @@ export function TrackUploadForm({ userId, username }: TrackUploadFormProps) {
       {/* Progress indicator */}
       <div className="mb-8">
         <div className="flex justify-between mb-4">
-          {[1, 2, 3, 4].map((s) => (
+          {[1, 2, 3].map((s) => (
             <div
               key={s}
               className={`flex items-center justify-center w-10 h-10 rounded-full font-semibold transition-colors ${
@@ -215,13 +205,12 @@ export function TrackUploadForm({ userId, username }: TrackUploadFormProps) {
           ))}
         </div>
         <div className="flex gap-2 text-sm text-gray-400">
-          <span>Step {step} of 4</span>
+          <span>Step {step} of 3</span>
           <span>•</span>
           <span>
             {step === 1 && 'Track Basics'}
-            {step === 2 && 'Royalty Splits'}
-            {step === 3 && 'License Terms'}
-            {step === 4 && 'Review & Confirm'}
+            {step === 2 && 'License Terms'}
+            {step === 3 && 'Review & Confirm'}
           </span>
         </div>
       </div>
@@ -238,6 +227,45 @@ export function TrackUploadForm({ userId, username }: TrackUploadFormProps) {
         {step === 1 && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold">Track Basics</h2>
+
+            {/* AI Origin Disclosure */}
+            <div className="bg-gray-800/50 border border-gray-700 rounded p-4 space-y-3">
+              <Label className="font-semibold">How was this track created? *</Label>
+              <div className="space-y-2">
+                {(['human', 'ai_assisted', 'ai_generated'] as const).map((option) => (
+                  <div key={option} className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      id={`ai_origin_${option}`}
+                      name="ai_origin"
+                      value={option}
+                      checked={formData.ai_origin === option}
+                      onChange={(e) => handleInputChange('ai_origin', e.target.value as typeof option)}
+                      className="w-4 h-4"
+                    />
+                    <label htmlFor={`ai_origin_${option}`} className="flex-1 cursor-pointer">
+                      <span className="font-semibold">
+                        {option === 'human' && 'Fully Human-Created'}
+                        {option === 'ai_assisted' && 'AI-Assisted'}
+                        {option === 'ai_generated' && 'AI-Generated'}
+                      </span>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {option === 'human' && 'All composition, performance, and production by human(s)'}
+                        {option === 'ai_assisted' && 'Human-created with AI tools for mastering, mixing, or specific elements'}
+                        {option === 'ai_generated' && 'Fully generated by AI (e.g., Suno, Udio, Stable Audio)'}
+                      </p>
+                    </label>
+                  </div>
+                ))}
+              </div>
+
+              {formData.ai_origin === 'ai_generated' && (
+                <div className="mt-4 p-3 bg-purple-900/20 border border-purple-700/50 rounded text-sm text-purple-300">
+                  <p className="font-semibold mb-2">Using Suno, Udio, or Stable Audio?</p>
+                  <p>This is transparent and correct — the registry is designed for this. The traditional music industry has no standard way to disclose AI involvement. Your registration creates an immutable on-chain declaration: a verified human is accountable for this work.</p>
+                </div>
+              )}
+            </div>
 
             <div>
               <Label htmlFor="title">Track Title *</Label>
@@ -263,7 +291,7 @@ export function TrackUploadForm({ userId, username }: TrackUploadFormProps) {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="genre">Genre</Label>
+                <Label htmlFor="genre">Genre (optional)</Label>
                 <Input
                   id="genre"
                   value={formData.genre}
@@ -273,7 +301,7 @@ export function TrackUploadForm({ userId, username }: TrackUploadFormProps) {
                 />
               </div>
               <div>
-                <Label htmlFor="release_date">Release Date</Label>
+                <Label htmlFor="release_date">Release Date (optional)</Label>
                 <Input
                   id="release_date"
                   type="date"
@@ -286,23 +314,23 @@ export function TrackUploadForm({ userId, username }: TrackUploadFormProps) {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="duration">Duration (seconds)</Label>
+                <Label htmlFor="duration">Duration in seconds (optional)</Label>
                 <Input
                   id="duration"
                   type="number"
-                  value={formData.duration_seconds}
-                  onChange={(e) => handleInputChange('duration_seconds', parseInt(e.target.value) || 0)}
+                  value={formData.duration_seconds ?? ''}
+                  onChange={(e) => handleInputChange('duration_seconds', e.target.value ? parseInt(e.target.value) : null)}
                   placeholder="180"
                   className="mt-2 bg-gray-800 border-gray-700"
                 />
               </div>
               <div>
-                <Label htmlFor="isrc">ISRC Code</Label>
+                <Label htmlFor="isrc">ISRC Code (optional)</Label>
                 <Input
                   id="isrc"
                   value={formData.isrc}
                   onChange={(e) => handleInputChange('isrc', e.target.value)}
-                  placeholder="Optional"
+                  placeholder="e.g., USRC1234567890"
                   className="mt-2 bg-gray-800 border-gray-700"
                 />
               </div>
@@ -313,7 +341,6 @@ export function TrackUploadForm({ userId, username }: TrackUploadFormProps) {
               <input
                 id="audio"
                 type="file"
-                accept="audio/*"
                 onChange={handleFileChange}
                 className="mt-2 block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-white file:text-black hover:file:bg-gray-100"
               />
@@ -326,68 +353,8 @@ export function TrackUploadForm({ userId, username }: TrackUploadFormProps) {
           </div>
         )}
 
-        {/* Step 2: Royalty Splits */}
+        {/* Step 2: License Terms */}
         {step === 2 && (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Royalty Splits</h2>
-            <p className="text-gray-400">
-              Optionally add collaborators and their revenue share percentages.
-            </p>
-
-            {formData.splits.length === 0 ? (
-              <div className="bg-gray-800/50 border border-gray-700 rounded p-6 text-center text-gray-400">
-                No splits added yet. You'll receive 100% of royalties.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {formData.splits.map((split, idx) => (
-                  <div key={idx} className="flex items-center gap-3 p-4 bg-gray-800 rounded">
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-400">{split.recipient}</p>
-                      <p className="font-semibold">{split.percentage}%</p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        const newSplits = formData.splits.filter((_, i) => i !== idx)
-                        handleInputChange('splits', newSplits)
-                      }}
-                      className="px-3 py-1 bg-red-600/20 text-red-400 rounded hover:bg-red-600/30 text-sm"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="pt-4 border-t border-gray-700">
-              <button
-                onClick={() => {
-                  // In a real app, this would open a dialog to add a new split
-                  // For now, we'll keep it simple
-                  const recipient = prompt('Wallet address (0x...):')
-                  const percentage = prompt('Percentage (0-100):')
-                  if (recipient && percentage) {
-                    const newSplits = [
-                      ...formData.splits,
-                      {
-                        recipient,
-                        percentage: parseInt(percentage),
-                      },
-                    ]
-                    handleInputChange('splits', newSplits)
-                  }
-                }}
-                className="px-4 py-2 bg-white/10 border border-white/20 text-white rounded hover:bg-white/20 text-sm font-semibold"
-              >
-                + Add Collaborator
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: License Terms */}
-        {step === 3 && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold">License Terms</h2>
             <p className="text-gray-400">
@@ -490,8 +457,8 @@ export function TrackUploadForm({ userId, username }: TrackUploadFormProps) {
           </div>
         )}
 
-        {/* Step 4: Review & Confirm */}
-        {step === 4 && (
+        {/* Step 3: Review & Confirm */}
+        {step === 3 && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold">Review & Register</h2>
 
@@ -502,6 +469,21 @@ export function TrackUploadForm({ userId, username }: TrackUploadFormProps) {
                 <p className="text-gray-400 text-sm">{formData.artist_name}</p>
               </div>
 
+              <div className="bg-gray-800/50 border border-gray-700 rounded p-4">
+                <p className="text-gray-400 mb-1 text-xs">Creation Method</p>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                    formData.ai_origin === 'human' ? 'bg-green-600/20 text-green-400' :
+                    formData.ai_origin === 'ai_assisted' ? 'bg-yellow-600/20 text-yellow-400' :
+                    'bg-purple-600/20 text-purple-400'
+                  }`}>
+                    {formData.ai_origin === 'human' && 'Fully Human-Created'}
+                    {formData.ai_origin === 'ai_assisted' && 'AI-Assisted'}
+                    {formData.ai_origin === 'ai_generated' && 'AI-Generated'}
+                  </span>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-800/50 border border-gray-700 rounded p-4">
                   <p className="text-gray-400 mb-1 text-xs">Genre</p>
@@ -509,7 +491,7 @@ export function TrackUploadForm({ userId, username }: TrackUploadFormProps) {
                 </div>
                 <div className="bg-gray-800/50 border border-gray-700 rounded p-4">
                   <p className="text-gray-400 mb-1 text-xs">Duration</p>
-                  <p className="font-semibold">{formData.duration_seconds}s</p>
+                  <p className="font-semibold">{formData.duration_seconds ? `${formData.duration_seconds}s` : 'Not specified'}</p>
                 </div>
               </div>
 
@@ -560,7 +542,7 @@ export function TrackUploadForm({ userId, username }: TrackUploadFormProps) {
             ← Back
           </button>
 
-          {step < 4 ? (
+          {step < 3 ? (
             <button
               onClick={handleNext}
               disabled={isLoading}

@@ -20,8 +20,9 @@ export function MiniKitProvider({ children }: MiniKitProviderProps) {
     import('@worldcoin/minikit-js')
       .then(({ MiniKit }) => {
         try {
-          MiniKit.install()
-          console.log('[MiniKitProvider] MiniKit.install() succeeded')
+          const appId = process.env.NEXT_PUBLIC_WORLD_APP_ID
+          MiniKit.install(appId)
+          console.log('[MiniKitProvider] MiniKit.install() succeeded with appId:', appId)
         } catch (e) {
           console.error('[MiniKitProvider] MiniKit.install() failed:', e)
         }

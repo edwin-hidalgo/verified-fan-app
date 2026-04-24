@@ -5,6 +5,7 @@ import { http } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
 let client: StoryClient | null = null
+let serviceWalletAddress: string | null = null
 
 export function getStoryClient(): StoryClient {
   if (client) {
@@ -26,6 +27,7 @@ export function getStoryClient(): StoryClient {
 
   try {
     const account = privateKeyToAccount(formattedKey as `0x${string}`)
+    serviceWalletAddress = account.address
 
     const config: StoryConfig = {
       account,
@@ -44,18 +46,16 @@ export function getStoryClient(): StoryClient {
   }
 }
 
-export async function getWalletBalance(): Promise<string> {
-  try {
-    const storyClient = getStoryClient()
-    const account = storyClient.account
-
-    // Get IP token balance
-    const balance = await storyClient.ipAccount.getIpAccountBalance(account.address)
-    console.log('[story-client] Wallet balance:', balance)
-
-    return balance.toString()
-  } catch (error) {
-    console.error('[story-client] Error fetching balance:', error)
-    throw error
+export function getServiceWalletAddress(): string {
+  if (!serviceWalletAddress) {
+    // Initialize client if not already done
+    getStoryClient()
   }
+
+  if (!serviceWalletAddress) {
+    throw new Error('Failed to determine service wallet address')
+  }
+
+  return serviceWalletAddress
 }
+

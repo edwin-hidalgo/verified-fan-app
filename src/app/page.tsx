@@ -1,19 +1,43 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
+interface Stats {
+  totalTracks: number
+  totalPlays: number
+}
+
 export default function Landing() {
   const router = useRouter()
+  const [stats, setStats] = useState<Stats>({ totalTracks: 0, totalPlays: 0 })
+  const [statsLoading, setStatsLoading] = useState(true)
+
+  // Removed auto-redirect to /register for verified users
+  // Verified users should still see the landing page and choose their action
 
   useEffect(() => {
-    // Check if user is already verified
-    const userId = typeof window !== 'undefined' ? localStorage.getItem('user_id') : null
-    if (userId) {
-      router.push('/register')
+    // Fetch live stats
+    const fetchStats = async () => {
+      try {
+        const response = await fetch('/api/stats')
+        if (response.ok) {
+          const data = await response.json()
+          setStats(data)
+        }
+      } catch (error) {
+        console.error('Failed to fetch stats:', error)
+      } finally {
+        setStatsLoading(false)
+      }
     }
-  }, [router])
+
+    fetchStats()
+    // Refresh stats every 30 seconds
+    const interval = setInterval(fetchStats, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   return (
     <div className="min-h-screen bg-black text-white px-4 py-12">
@@ -23,52 +47,81 @@ export default function Landing() {
         <div className="space-y-6 text-center">
           <div className="space-y-4">
             <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
-              Verified Human Music Registry
+              ekos — the music trust layer for the AI era
             </h1>
-            <p className="text-xl text-gray-300 max-w-lg mx-auto">
-              The first music IP registry where only verified humans can register works.
+            <p className="text-xl text-gray-300 max-w-2xl mx-auto">
+              Verified humans register music with on-chain provenance. Every creator is a unique person. Every play is a verified listen. License terms are machine-readable. This is the infrastructure the industry needs and no one else has built.
             </p>
           </div>
 
-          {/* CTA - Verify to Register */}
-          <button
-            onClick={() => router.push('/verify')}
-            className="px-8 py-4 bg-white text-black font-semibold rounded-full hover:bg-gray-100 transition-colors duration-200 inline-block mx-auto"
-          >
-            Verify with World ID →
-          </button>
+          {/* CTA - Both Creator and Listener Flows */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center flex-wrap">
+            <button
+              onClick={() => router.push('/create')}
+              className="px-8 py-4 bg-purple-600 text-white font-semibold rounded-full hover:bg-purple-700 transition-colors duration-200"
+            >
+              Create a Moment →
+            </button>
+            <button
+              onClick={() => router.push('/verify')}
+              className="px-8 py-4 bg-white text-black font-semibold rounded-full hover:bg-gray-100 transition-colors duration-200"
+            >
+              Verify & Register →
+            </button>
+            <button
+              onClick={() => router.push('/catalog')}
+              className="px-8 py-4 bg-gray-800 text-white font-semibold rounded-full hover:bg-gray-700 transition-colors duration-200 border border-gray-600"
+            >
+              Browse Catalog →
+            </button>
+          </div>
           <p className="text-sm text-gray-500">
-            Prove your humanity, then register your music as IP Assets on Story Protocol.
+            Creators: Register your IP with proof. Listeners: Verify to enable play counting. Or just browse.
           </p>
+        </div>
+
+        {/* Live Stats */}
+        <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+          <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-6 text-center">
+            <div className="text-3xl font-bold text-white mb-2">
+              {statsLoading ? '—' : stats.totalTracks}
+            </div>
+            <p className="text-sm text-gray-400">Registered Tracks</p>
+          </div>
+          <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-6 text-center">
+            <div className="text-3xl font-bold text-green-400 mb-2">
+              {statsLoading ? '—' : stats.totalPlays}
+            </div>
+            <p className="text-sm text-gray-400">Verified Plays</p>
+          </div>
         </div>
 
         {/* The Problem */}
         <div className="space-y-4">
-          <h2 className="text-2xl font-bold">The Problem</h2>
+          <h2 className="text-2xl font-bold">Why Now</h2>
           <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-6 space-y-4">
-            <div>
-              <p className="text-gray-300">
-                <span className="text-red-400 font-semibold">Music IP is unverifiable.</span> Ownership and rights are fragmented across:
-              </p>
+            <div className="space-y-3">
+              <div className="text-sm text-gray-300">
+                <span className="text-red-400 font-semibold">$2B/year lost to streaming fraud</span> (Beatdapp)
+              </div>
+              <div className="text-sm text-gray-300">
+                <span className="text-red-400 font-semibold">8%+ of Spotify streams</span> come from artificial accounts
+              </div>
+              <div className="text-sm text-gray-300">
+                <span className="text-red-400 font-semibold">60,000 AI tracks per day</span> uploaded to Deezer — 39% of daily intake
+              </div>
+              <div className="text-sm text-gray-300">
+                <span className="text-red-400 font-semibold">85% of streams on AI-generated tracks</span> were fraudulent in 2025
+              </div>
+              <div className="text-sm text-gray-300">
+                <span className="text-red-400 font-semibold">Apple Music demonetized 2B streams</span> in 2025 (~$17M)
+              </div>
             </div>
-            <div className="space-y-4">
-              <div className="text-sm text-gray-400 space-y-2">
-                <div>
-                  <span className="text-red-300 font-semibold">Streaming platforms:</span> Spotify, Apple Music don't verify creator identity. Fake artists upload AI-generated songs to steal royalties.
-                </div>
-                <div>
-                  <span className="text-red-300 font-semibold">Licensing chaos:</span> Rights holders can't enforce AI training restrictions. No machine-readable terms. Disputes are manual and slow.
-                </div>
-                <div>
-                  <span className="text-red-300 font-semibold">Creator identity gap:</span> No way to prove "I am the creator of this work" without legal paperwork.
-                </div>
-              </div>
 
-              <div className="bg-red-950/40 border border-red-700/40 rounded p-4">
-                <p className="text-gray-200 text-sm leading-relaxed">
-                  <span className="text-red-300 font-semibold">The result:</span> Creators can't control their own IP. Rights disputes are unresolved. AI training happens without consent or compensation. Music ownership is a legal mess, not a technical reality.
-                </p>
-              </div>
+            <div className="bg-red-950/40 border border-red-700/40 rounded p-4">
+              <p className="text-gray-200 text-sm leading-relaxed">
+                <span className="text-red-300 font-semibold">Why existing solutions fail:</span> Detection (AI classifiers) is brittle. Disclosure (metadata) is unenforceable. Source provenance is not integrated in DAWs. All three are reactive, supply-side only, and ignore whether a real human was on the other end of the stream.
+              </p>
             </div>
           </div>
         </div>
@@ -116,24 +169,49 @@ export default function Landing() {
           </div>
         </div>
 
+        {/* Long-Game Vision */}
+        <div className="space-y-4">
+          <h2 className="text-2xl font-bold">Where This Goes</h2>
+          <div className="bg-purple-900/20 border border-purple-700/50 rounded-lg p-6 space-y-3">
+            <div className="text-sm text-gray-300">
+              <span className="text-purple-400 font-semibold">Verified Listeners</span> — The demand-side of the dual-layer trust system. Every play is attested to a unique human.
+            </div>
+            <div className="text-sm text-gray-300">
+              <span className="text-purple-400 font-semibold">Privacy-Preserving Creation Verification</span> — DAW-level provenance with zero-knowledge proofs. Prove you created something without revealing the work.
+            </div>
+            <div className="text-sm text-gray-300">
+              <span className="text-purple-400 font-semibold">Programmatic AI Training Licensing</span> — Queryable catalog with per-use settlement. AI companies pay per training run. Creators get paid on-chain, instantly.
+            </div>
+          </div>
+        </div>
+
         {/* What You'll See */}
         <div className="space-y-4">
           <h2 className="text-2xl font-bold">What This Demo Shows</h2>
           <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-6 space-y-3">
-            <p className="text-gray-300 font-semibold mb-3">Creator Registration</p>
+            <p className="text-gray-300 font-semibold mb-3">Supply Side: Creator Registration</p>
             <ul className="text-gray-300 space-y-2 text-sm mb-4">
-              <li>✓ Verify with World ID (dev mode: skip verification)</li>
+              <li>✓ Verify with World ID Orb (proof of humanity)</li>
+              <li>✓ Disclose whether your music is human-created, AI-assisted, or AI-generated</li>
               <li>✓ Upload music file + metadata</li>
-              <li>✓ Define license terms (AI training, sync, commercial use)</li>
+              <li>✓ Define license terms (AI training pricing, sync rights, commercial use)</li>
               <li>✓ Register as IP Asset on Story Protocol Aeneid testnet</li>
             </ul>
 
-            <p className="text-gray-300 font-semibold mb-3">Public Catalog</p>
+            <p className="text-gray-300 font-semibold mb-3">Demand Side: Verified Listeners</p>
+            <ul className="text-gray-300 space-y-2 text-sm mb-4">
+              <li>✓ Browse all registered works with verified creator badges</li>
+              <li>✓ See how many verified humans have listened to each track</li>
+              <li>✓ Every time YOU play a track (as a verified user), that counts as 1 verified listen</li>
+              <li>✓ Not inflated streams — actual, auditable human engagement</li>
+            </ul>
+
+            <p className="text-gray-300 font-semibold mb-3">Both Sides Together</p>
             <ul className="text-gray-300 space-y-2 text-sm">
-              <li>✓ Browse all registered works</li>
-              <li>✓ See creator's verified human badge</li>
-              <li>✓ View machine-readable license terms (JSON)</li>
+              <li>✓ View machine-readable license terms (JSON API)</li>
+              <li>✓ See creation method badge (Human / AI-Assisted / AI-Generated)</li>
               <li>✓ Link to work on Story Protocol explorer</li>
+              <li>✓ Understand rights at a glance</li>
             </ul>
           </div>
         </div>

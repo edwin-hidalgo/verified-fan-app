@@ -11,9 +11,11 @@ interface Track {
   genre: string
   duration_seconds: number
   audio_file_url: string
+  ai_origin: 'human' | 'ai_assisted' | 'ai_generated'
   ai_training_allowed: boolean
   sync_allowed: boolean
   commercial_use_allowed: boolean
+  play_count: number
   registration_status: string
   created_at: string
 }
@@ -27,6 +29,7 @@ export default function CatalogPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<FilterType>('all')
+  const [localPlayCounts, setLocalPlayCounts] = useState<Record<string, number>>({})
 
   useEffect(() => {
     const fetchTracks = async () => {
@@ -63,6 +66,37 @@ export default function CatalogPage() {
 
     setFilteredTracks(filtered)
   }, [filter, tracks])
+
+  const recordPlay = async (trackId: string) => {
+    const userId = localStorage.getItem('user_id')
+    if (!userId) return // Only record plays for authenticated users
+
+    try {
+      const response = await fetch(`/api/tracks/${trackId}/play`, {
+        method: 'POST',
+        headers: {
+          'x-user-id': userId,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        // Update local play count
+        setLocalPlayCounts((prev) => ({
+          ...prev,
+          [trackId]: data.playCount,
+        }))
+        // Update tracks array with new play count
+        setTracks((prev) =>
+          prev.map((t) =>
+            t.id === trackId ? { ...t, play_count: data.playCount } : t
+          )
+        )
+      }
+    } catch (error) {
+      console.error('[catalog] Failed to record play:', error)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-black text-white py-12 px-4">
@@ -156,6 +190,7 @@ export default function CatalogPage() {
                   controls
                   className="w-full mb-4 h-8"
                   onClick={(e) => e.stopPropagation()}
+                  onPlay={() => recordPlay(track.id)}
                 />
 
                 {/* Track Info */}
@@ -170,6 +205,19 @@ export default function CatalogPage() {
                       {track.genre} • {Math.floor(track.duration_seconds / 60)}m
                     </p>
                   )}
+
+                  {/* AI Origin Badge */}
+                  <div className="mb-2">
+                    <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                      track.ai_origin === 'human' ? 'bg-green-600/20 text-green-400' :
+                      track.ai_origin === 'ai_assisted' ? 'bg-yellow-600/20 text-yellow-400' :
+                      'bg-purple-600/20 text-purple-400'
+                    }`}>
+                      {track.ai_origin === 'human' && 'Human'}
+                      {track.ai_origin === 'ai_assisted' && 'AI-Assisted'}
+                      {track.ai_origin === 'ai_generated' && 'AI-Generated'}
+                    </span>
+                  </div>
 
                   {/* License Tags */}
                   <div className="flex flex-wrap gap-2 mb-3">
@@ -192,19 +240,24 @@ export default function CatalogPage() {
                 </div>
 
                 {/* Status Footer */}
-                <div className="pt-4 border-t border-gray-800 flex items-center justify-between">
-                  <span className="text-xs text-gray-500">
-                    {new Date(track.created_at).toLocaleDateString()}
-                  </span>
-                  {track.registration_status === 'registered' ? (
-                    <span className="text-xs bg-green-600/20 text-green-400 px-2 py-1 rounded">
-                      ✓ Registered
+                <div className="pt-4 border-t border-gray-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">
+                      {new Date(track.created_at).toLocaleDateString()}
                     </span>
-                  ) : (
-                    <span className="text-xs bg-yellow-600/20 text-yellow-400 px-2 py-1 rounded">
-                      {track.registration_status}
-                    </span>
-                  )}
+                    {track.registration_status === 'registered' ? (
+                      <span className="text-xs bg-green-600/20 text-green-400 px-2 py-1 rounded">
+                        ✓ Registered
+                      </span>
+                    ) : (
+                      <span className="text-xs bg-yellow-600/20 text-yellow-400 px-2 py-1 rounded">
+                        {track.registration_status}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    {(localPlayCounts[track.id] ?? track.play_count) || 0} verified {(localPlayCounts[track.id] ?? track.play_count) === 1 ? 'listen' : 'listens'}
+                  </div>
                 </div>
               </button>
             ))}

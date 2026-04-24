@@ -44,6 +44,12 @@ export const MusicWorkSchema = z.object({
   audio_file_hash: z.string().describe('SHA256 hash of audio file for integrity'),
   duration_seconds: z.number().int().positive().optional().describe('Duration in seconds'),
 
+  // AI Origin Disclosure (immutable on-chain)
+  ai_origin: z
+    .enum(['human', 'ai_assisted', 'ai_generated'])
+    .default('human')
+    .describe('Creator-declared origin: human, ai_assisted, or ai_generated'),
+
   // Metadata
   genre: z.string().optional().describe('Music genre'),
   release_date: z.string().date().optional().describe('Release date (YYYY-MM-DD)'),
@@ -51,9 +57,9 @@ export const MusicWorkSchema = z.object({
 
 export const CreatorIdentitySchema = z.object({
   world_wallet_address: z.string().startsWith('0x').describe('World ID wallet address'),
-  world_nullifier_hash: z.string().describe('World ID nullifier hash (proof of uniqueness)'),
+  world_nullifier_hash: z.string().optional().nullable().describe('World ID nullifier hash (proof of uniqueness)'),
   world_username: z.string().optional().nullable().describe('Creator username'),
-  verified_human: z.boolean().const(true).describe('Always true - only humans can register'),
+  verified_human: z.literal(true).describe('Always true - only humans can register'),
 })
 
 export const SplitSchema = z.object({
@@ -84,6 +90,7 @@ export type MusicWork = z.infer<typeof MusicWorkSchema>
 export type CreatorIdentity = z.infer<typeof CreatorIdentitySchema>
 export type Split = z.infer<typeof SplitSchema>
 export type MusicIPMetadata = z.infer<typeof MusicIPMetadataSchema>
+export type AIOrigin = z.infer<typeof MusicWorkSchema>['ai_origin']
 
 /**
  * Validate and create music IP metadata for registration

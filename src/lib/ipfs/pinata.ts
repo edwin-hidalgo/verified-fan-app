@@ -63,7 +63,7 @@ export async function uploadFile(buffer: Buffer, filename: string): Promise<stri
   }
 
   try {
-    const blob = new Blob([buffer], { type: 'application/octet-stream' })
+    const blob = new Blob([new Uint8Array(buffer)], { type: 'application/octet-stream' })
     const formData = new FormData()
     formData.append('file', blob, filename)
 

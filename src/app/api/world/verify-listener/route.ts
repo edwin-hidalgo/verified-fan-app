@@ -1,6 +1,8 @@
 /**
- * POST /api/world/verify
- * Verify SIWE (Sign-In With Ethereum) wallet authentication for creator registration
+ * POST /api/world/verify-listener
+ * Verify SIWE (Sign-In With Ethereum) wallet authentication for listener registration
+ *
+ * Same as /api/world/verify but for listeners. Users can verify as listeners to enable play counting.
  *
  * Request body:
  * {
@@ -8,7 +10,7 @@
  *   "message": "Sign in to verify...",
  *   "signature": "0x...",
  *   "orb_verified": true,
- *   "username": "creator_name",
+ *   "username": "listener_name",
  *   "devMode": boolean (optional, for dev mode bypass)
  * }
  */
@@ -43,23 +45,23 @@ export async function POST(request: NextRequest) {
     // Verify SIWE signature (unless dev mode)
     if (!devMode) {
       try {
-        console.log('[world-verify] Verifying SIWE signature')
-        console.log('[world-verify] Provided address:', providedAddress)
-        console.log('[world-verify] Message length:', message.length)
-        console.log('[world-verify] Signature:', signature.substring(0, 20) + '...')
+        console.log('[world-verify-listener] Verifying SIWE signature')
+        console.log('[world-verify-listener] Provided address:', providedAddress)
+        console.log('[world-verify-listener] Message length:', message.length)
+        console.log('[world-verify-listener] Signature:', signature.substring(0, 20) + '...')
 
         // Recover the signer address from the signature
         const recoveredAddress = await recoverMessageAddress({
           message,
           signature: signature as `0x${string}`,
         })
-        console.log('[world-verify] Recovered address:', recoveredAddress)
+        console.log('[world-verify-listener] Recovered address:', recoveredAddress)
 
         // Use the recovered address (it's cryptographically verified)
         address = recoveredAddress
-        console.log('[world-verify] SIWE signature verified - using recovered address')
+        console.log('[world-verify-listener] SIWE signature verified - using recovered address')
       } catch (signatureError) {
-        console.error('[world-verify] Signature verification error:', signatureError)
+        console.error('[world-verify-listener] Signature verification error:', signatureError)
         return NextResponse.json(
           { error: 'Signature verification failed' },
           { status: 401 }
@@ -87,7 +89,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('[world-verify] Error upserting user:', error)
+      console.error('[world-verify-listener] Error upserting user:', error)
       return NextResponse.json(
         { error: 'Failed to verify user' },
         { status: 500 }
@@ -95,7 +97,7 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = data.id
-    console.log('[world-verify] User verified/created:', userId, 'address:', address)
+    console.log('[world-verify-listener] Listener verified/created:', userId, 'address:', address)
 
     // Fetch full user data to return to client
     const { data: fullUser, error: fetchError } = await supabase
@@ -105,7 +107,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (fetchError) {
-      console.error('[world-verify] Error fetching user data:', fetchError)
+      console.error('[world-verify-listener] Error fetching user data:', fetchError)
       return NextResponse.json(
         { error: 'Failed to fetch user data' },
         { status: 500 }
@@ -120,7 +122,7 @@ export async function POST(request: NextRequest) {
       orbVerified: fullUser.orb_verified,
     })
   } catch (error) {
-    console.error('[world-verify] Verification error:', error)
+    console.error('[world-verify-listener] Verification error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
