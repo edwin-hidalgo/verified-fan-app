@@ -26,6 +26,13 @@ interface VerifyRequest {
   devMode?: boolean
 }
 
+export async function GET(request: NextRequest) {
+  // World App redirects here after verification - just redirect to landing page
+  const { searchParams } = new URL(request.url)
+  const returnTo = searchParams.get('return_to') || '/'
+  return Response.redirect(new URL(returnTo, request.url))
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body: VerifyRequest = await request.json()
