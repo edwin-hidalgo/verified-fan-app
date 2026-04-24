@@ -56,8 +56,9 @@ export async function POST(request: NextRequest) {
     const prompt = `${vibeCharacteristics}, ${description}, instrumental, high quality, studio production`
 
     // Create Replicate prediction (non-blocking)
+    // Using facebook/musicgen-large - widely available and reliable
     const prediction = await replicate.predictions.create({
-      version: 'f7cf6f7aac3c5c4fe93ab4fb96a69bbfcde5e4a3a4873d61456c339c74d0c97b', // Stable Audio 2.5
+      version: '671ac645ce5e552411d4a65692c9e4f5b3f3f992d2651cc24fe5e7e56b0b12c2', // facebook/musicgen-large
       input: {
         prompt: prompt,
         duration: 12, // 12 seconds for short atmospheric sketches
