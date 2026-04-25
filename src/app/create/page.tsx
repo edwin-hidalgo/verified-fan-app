@@ -541,7 +541,7 @@ export default function CreatePage() {
               <h2 className="text-2xl font-bold">Register This Moment</h2>
 
               {/* Cover Art Section */}
-              {genState.imageUrl && (
+              {genState.imageUrl && genState.imagePreviewUrl && (
                 <div className="space-y-3">
                   <img
                     src={genState.imagePreviewUrl}
