@@ -13,6 +13,9 @@ interface GenerationState {
   generatedAudioUrl: string | null
   predictionId: string | null
   error: string | null
+  imageFile: File | null
+  imagePreviewUrl: string | null
+  isDescribing: boolean
 }
 
 interface RegistrationState {
@@ -38,6 +41,9 @@ export default function CreatePage() {
     generatedAudioUrl: null,
     predictionId: null,
     error: null,
+    imageFile: null,
+    imagePreviewUrl: null,
+    isDescribing: false,
   })
 
   const [regState, setRegState] = useState<RegistrationState>({
@@ -53,6 +59,110 @@ export default function CreatePage() {
   })
 
   const [audioPlayerKey, setAudioPlayerKey] = useState(0)
+
+  // Resize image client-side before uploading
+  const resizeImage = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const img = new window.Image()
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          let width = img.width
+          let height = img.height
+
+          // Resize to max 1024px
+          const maxSize = 1024
+          if (width > height) {
+            if (width > maxSize) {
+              height = (height * maxSize) / width
+              width = maxSize
+            }
+          } else {
+            if (height > maxSize) {
+              width = (width * maxSize) / height
+              height = maxSize
+            }
+          }
+
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')
+          if (!ctx) {
+            reject(new Error('Failed to get canvas context'))
+            return
+          }
+
+          ctx.drawImage(img, 0, 0, width, height)
+          resolve(canvas.toDataURL('image/jpeg', 0.8))
+        }
+        img.onerror = () => reject(new Error('Failed to load image'))
+        img.src = e.target?.result as string
+      }
+      reader.onerror = () => reject(new Error('Failed to read file'))
+      reader.readAsDataURL(file)
+    })
+  }
+
+  // Handle image selection
+  const handleImageSelect = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setGenState((prev) => ({
+        ...prev,
+        error: 'Please select an image file',
+      }))
+      return
+    }
+
+    setGenState((prev) => ({
+      ...prev,
+      imageFile: file,
+      isDescribing: true,
+      error: null,
+    }))
+
+    try {
+      // Resize image
+      const resizedBase64 = await resizeImage(file)
+      const base64Data = resizedBase64.split(',')[1] // Remove data:image/jpeg;base64, prefix
+
+      // Show preview
+      setGenState((prev) => ({
+        ...prev,
+        imagePreviewUrl: resizedBase64,
+      }))
+
+      // Call describe-image API
+      const response = await fetch('/api/describe-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image: base64Data,
+          mimeType: file.type || 'image/jpeg',
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to analyze image')
+      }
+
+      const { description } = await response.json()
+
+      setGenState((prev) => ({
+        ...prev,
+        description,
+        isDescribing: false,
+      }))
+    } catch (error) {
+      console.error('Image analysis error:', error)
+      setGenState((prev) => ({
+        ...prev,
+        isDescribing: false,
+        error: error instanceof Error ? error.message : 'Failed to analyze image',
+      }))
+    }
+  }
 
   if (isLoading) {
     return (
@@ -223,6 +333,9 @@ export default function CreatePage() {
       generatedAudioUrl: null,
       predictionId: null,
       error: null,
+      imageFile: null,
+      imagePreviewUrl: null,
+      isDescribing: false,
     })
     setRegState({
       title: '',
@@ -251,7 +364,83 @@ export default function CreatePage() {
         {/* Stage 1: Description & Generation */}
         {!genState.generatedAudioUrl ? (
           <div className="space-y-6 bg-gray-900/50 border border-gray-800 rounded-lg p-8">
+            {/* Image Input Section */}
             <div>
+              <label className="block text-sm font-semibold mb-3">
+                Or snap a moment (optional)
+              </label>
+              <div className="flex gap-3 mb-4">
+                <label className="flex-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) handleImageSelect(file)
+                    }}
+                    disabled={genState.isDescribing || genState.isGenerating}
+                    className="hidden"
+                  />
+                  <button
+                    onClick={(e) => {
+                      e.currentTarget.parentElement?.querySelector('input')?.click()
+                    }}
+                    disabled={genState.isDescribing || genState.isGenerating}
+                    className="w-full px-4 py-3 bg-gray-800 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors"
+                  >
+                    📷 Take a Photo
+                  </button>
+                </label>
+                <label className="flex-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) handleImageSelect(file)
+                    }}
+                    disabled={genState.isDescribing || genState.isGenerating}
+                    className="hidden"
+                  />
+                  <button
+                    onClick={(e) => {
+                      e.currentTarget.parentElement?.querySelector('input')?.click()
+                    }}
+                    disabled={genState.isDescribing || genState.isGenerating}
+                    className="w-full px-4 py-3 bg-gray-800 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors"
+                  >
+                    🖼️ Choose Photo
+                  </button>
+                </label>
+              </div>
+              <p className="text-xs text-gray-500">
+                Your photo is analyzed by AI to generate music. It is not stored.
+              </p>
+
+              {/* Image Preview */}
+              {genState.imagePreviewUrl && (
+                <div className="mt-4">
+                  <img
+                    src={genState.imagePreviewUrl}
+                    alt="Selected moment"
+                    className="w-full h-40 object-cover rounded-lg border border-gray-700"
+                  />
+                </div>
+              )}
+
+              {/* Describing state */}
+              {genState.isDescribing && (
+                <div className="mt-4 p-4 bg-purple-900/20 border border-purple-700/50 rounded-lg">
+                  <div className="flex gap-2 items-center">
+                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
+                    <p className="text-sm text-purple-300">Reading your photo...</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-gray-700 pt-6">
               <label className="block text-sm font-semibold mb-3">
                 What moment are you experiencing right now?
               </label>
