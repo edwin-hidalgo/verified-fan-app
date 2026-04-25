@@ -56,14 +56,14 @@ export async function POST(request: NextRequest) {
     const prompt = `${vibeCharacteristics}, ${description}, instrumental, high quality, studio production`
 
     // Create Replicate prediction (non-blocking)
-    // Using correct version hash for meta/musicgen (from replicate.com/meta/musicgen/versions)
+    // Using stability-ai/stable-audio-2.5 (official model, no version hash needed)
     const prediction = await replicate.predictions.create({
-      version: '671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb',
+      model: 'stability-ai/stable-audio-2.5',
       input: {
         prompt: prompt,
-        model_version: 'stereo-large',
-        duration: 12, // 12 seconds for short atmospheric sketches
-        output_format: 'mp3',
+        seconds_total: 30, // stable-audio uses seconds_total (max 190)
+        num_inference_steps: 8,
+        guidance_scale: 7,
       },
     })
 

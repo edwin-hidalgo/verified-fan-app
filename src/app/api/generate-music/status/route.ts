@@ -36,7 +36,10 @@ export async function GET(request: NextRequest) {
 
     if (prediction.status === 'succeeded') {
       // Extract audio URL from output
-      const audioUrl = prediction.output?.[0] || prediction.output
+      // stability-audio-2.5 returns a single string URL, not an array
+      const audioUrl = typeof prediction.output === 'string'
+        ? prediction.output
+        : prediction.output?.[0]
 
       if (!audioUrl) {
         console.error('[generate-music-status] No audio URL in output:', prediction.output)
