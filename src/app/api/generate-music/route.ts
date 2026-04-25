@@ -56,12 +56,12 @@ export async function POST(request: NextRequest) {
     const prompt = `${vibeCharacteristics}, ${description}, instrumental, high quality, studio production`
 
     // Create Replicate prediction (non-blocking)
-    // Using facebook/musicgen with model: param (avoids version hash issues)
+    // Using correct version hash for meta/musicgen (from replicate.com/meta/musicgen/versions)
     const prediction = await replicate.predictions.create({
-      model: 'facebook/musicgen',
+      version: '671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb',
       input: {
         prompt: prompt,
-        model_version: 'large',
+        model_version: 'stereo-large',
         duration: 12, // 12 seconds for short atmospheric sketches
         output_format: 'mp3',
       },
