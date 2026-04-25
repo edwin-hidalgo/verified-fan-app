@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import Link from 'next/link'
+import { showToast } from '@/lib/utils/toast'
 
 interface Track {
   id: string
@@ -102,6 +103,34 @@ export default function TrackDetailPage() {
     }
   }
 
+  const handleShare = async () => {
+    if (!track || !creator) return
+
+    const shareText = `I just registered a verified-human moment on ekos — "${track.title}" by ${creator.world_username || 'verified creator'}. ${track.play_count} verified listens so far. 🎵`
+    const shareUrl = typeof window !== 'undefined' ? window.location.href : ''
+
+    if (navigator.share) {
+      // Mobile: use native share sheet
+      try {
+        await navigator.share({
+          title: track.title,
+          text: shareText,
+          url: shareUrl,
+        })
+      } catch (err) {
+        // User cancelled share, no error needed
+      }
+    } else {
+      // Desktop: copy to clipboard + show toast
+      try {
+        await navigator.clipboard.writeText(`${shareText}\n\n${shareUrl}`)
+        showToast('Copied to clipboard! 📋', 'success', 2000)
+      } catch (err) {
+        showToast('Failed to copy', 'error')
+      }
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-black">
@@ -177,6 +206,14 @@ export default function TrackDetailPage() {
                     <p className="text-gray-300 italic text-lg">"{track.moment_description}"</p>
                   </div>
                 )}
+
+                {/* Share Button */}
+                <button
+                  onClick={handleShare}
+                  className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-full transition-colors w-full"
+                >
+                  📤 Share This Moment
+                </button>
 
                 {/* Verified Play Counter */}
                 <div className="bg-green-600/10 border border-green-600/30 rounded p-4">
