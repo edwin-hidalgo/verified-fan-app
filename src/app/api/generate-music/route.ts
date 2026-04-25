@@ -1,6 +1,6 @@
 /**
  * POST /api/generate-music
- * Generate music from a text description + vibe via Replicate Stable Audio 2.5
+ * Generate music from a text description + vibe via Replicate MusicGen
  *
  * Request body:
  * {
@@ -56,12 +56,14 @@ export async function POST(request: NextRequest) {
     const prompt = `${vibeCharacteristics}, ${description}, instrumental, high quality, studio production`
 
     // Create Replicate prediction (non-blocking)
-    // Using facebook/musicgen-large - widely available and reliable
+    // Using meta/musicgen with model: param (avoids version hash issues)
     const prediction = await replicate.predictions.create({
-      version: '671ac645ce5e552411d4a65692c9e4f5b3f3f992d2651cc24fe5e7e56b0b12c2', // facebook/musicgen-large
+      model: 'meta/musicgen',
       input: {
         prompt: prompt,
+        model_version: 'large',
         duration: 12, // 12 seconds for short atmospheric sketches
+        output_format: 'mp3',
       },
     })
 
