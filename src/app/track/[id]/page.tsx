@@ -30,6 +30,8 @@ interface Track {
   ipfs_metadata_cid: string
   registration_status: string
   created_at: string
+  cover_image_url: string | null
+  moment_description: string | null
 }
 
 interface User {
@@ -145,6 +147,15 @@ export default function TrackDetailPage() {
           <div className="md:col-span-2 space-y-6">
             {/* Audio Player */}
             <Card className="p-8 bg-gray-900 border-gray-800">
+              {/* Cover Image */}
+              {track.cover_image_url && (
+                <img
+                  src={track.cover_image_url}
+                  alt={track.title}
+                  className="w-full h-64 object-cover rounded-lg mb-6 border border-gray-700"
+                />
+              )}
+
               <audio
                 src={track.audio_file_url}
                 controls
@@ -158,6 +169,14 @@ export default function TrackDetailPage() {
                   <p className="text-gray-400 text-sm mb-1">Title</p>
                   <h1 className="text-4xl font-bold">{track.title}</h1>
                 </div>
+
+                {/* Moment Description */}
+                {track.moment_description && (
+                  <div>
+                    <p className="text-gray-400 text-sm mb-2">The Moment</p>
+                    <p className="text-gray-300 italic text-lg">"{track.moment_description}"</p>
+                  </div>
+                )}
 
                 {/* Verified Play Counter */}
                 <div className="bg-green-600/10 border border-green-600/30 rounded p-4">

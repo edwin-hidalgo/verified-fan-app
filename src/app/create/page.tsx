@@ -16,6 +16,8 @@ interface GenerationState {
   imageFile: File | null
   imagePreviewUrl: string | null
   isDescribing: boolean
+  momentDescription: string | null
+  imageUrl: string | null
 }
 
 interface RegistrationState {
@@ -28,6 +30,7 @@ interface RegistrationState {
   commercialUseRevShare: number
   isRegistering: boolean
   error: string | null
+  includeCoverArt: boolean
 }
 
 export default function CreatePage() {
@@ -44,6 +47,8 @@ export default function CreatePage() {
     imageFile: null,
     imagePreviewUrl: null,
     isDescribing: false,
+    momentDescription: null,
+    imageUrl: null,
   })
 
   const [regState, setRegState] = useState<RegistrationState>({
@@ -56,6 +61,7 @@ export default function CreatePage() {
     commercialUseRevShare: 0,
     isRegistering: false,
     error: null,
+    includeCoverArt: false,
   })
 
   const [audioPlayerKey, setAudioPlayerKey] = useState(0)
@@ -147,12 +153,20 @@ export default function CreatePage() {
         throw new Error(errorData.error || 'Failed to analyze image')
       }
 
-      const { description } = await response.json()
+      const { musicDescription, momentDescription, imageUrl } = await response.json()
 
       setGenState((prev) => ({
         ...prev,
-        description,
+        description: musicDescription,
+        momentDescription,
+        imageUrl,
         isDescribing: false,
+      }))
+
+      // Auto-enable cover art toggle if image was uploaded
+      setRegState((prev) => ({
+        ...prev,
+        includeCoverArt: true,
       }))
     } catch (error) {
       console.error('Image analysis error:', error)
@@ -304,6 +318,8 @@ export default function CreatePage() {
             sync_price_usd: regState.syncPrice,
             commercial_use_allowed: regState.commercialUseAllowed,
             commercial_use_revenue_share_pct: regState.commercialUseRevShare,
+            cover_image_url: regState.includeCoverArt ? genState.imageUrl : null,
+            moment_description: genState.momentDescription,
           },
         }),
       })
@@ -336,6 +352,8 @@ export default function CreatePage() {
       imageFile: null,
       imagePreviewUrl: null,
       isDescribing: false,
+      momentDescription: null,
+      imageUrl: null,
     })
     setRegState({
       title: '',
@@ -347,6 +365,7 @@ export default function CreatePage() {
       commercialUseRevShare: 0,
       isRegistering: false,
       error: null,
+      includeCoverArt: false,
     })
   }
 
@@ -520,6 +539,32 @@ export default function CreatePage() {
             {/* Registration Form */}
             <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-8 space-y-6">
               <h2 className="text-2xl font-bold">Register This Moment</h2>
+
+              {/* Cover Art Section */}
+              {genState.imageUrl && (
+                <div className="space-y-3">
+                  <img
+                    src={genState.imagePreviewUrl}
+                    alt="Moment cover"
+                    className="w-full h-48 object-cover rounded-lg border border-gray-700"
+                  />
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={regState.includeCoverArt}
+                      onChange={(e) =>
+                        setRegState((prev) => ({
+                          ...prev,
+                          includeCoverArt: e.target.checked,
+                        }))
+                      }
+                      disabled={regState.isRegistering}
+                      className="w-4 h-4 rounded"
+                    />
+                    <span className="text-sm font-semibold">Use this photo as cover art</span>
+                  </label>
+                </div>
+              )}
 
               {/* Title */}
               <div>

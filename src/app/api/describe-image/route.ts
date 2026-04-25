@@ -1,6 +1,7 @@
 /**
  * POST /api/describe-image
- * Generate a music-optimized description from an image using Claude vision
+ * Generate dual descriptions (music + literal) from an image using Claude vision
+ * Also uploads the image to Supabase Storage for use as cover art
  *
  * Request body:
  * {
@@ -10,31 +11,33 @@
  *
  * Response:
  * {
- *   "description": "emotional, sensory description suitable for music generation"
+ *   "musicDescription": "emotional description for music generation",
+ *   "momentDescription": "literal description of what's in the photo",
+ *   "imageUrl": "https://supabase.../covers/..."
  * }
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
-const SYSTEM_PROMPT = `You are translating a photo into a music composition prompt.
+const SYSTEM_PROMPT = `You are analyzing a photo and generating two complementary descriptions.
 
-Look at the image provided and describe what you see in terms of:
-- Emotional tone and mood
-- Quality of light (warm/cold/dim/bright)
-- Energy level (still/gentle/dynamic/intense)
-- Atmosphere and feeling
-- Any implied sounds or rhythms
+Return a JSON object with exactly two keys:
+- "music": 1-2 sentences, max 30 words, emotional/atmospheric ONLY. NO literal objects or people. For a music composer.
+- "moment": 1-2 sentences, plain English. What is literally in the photo — who/what/where. For the person who took it.
 
-Do NOT describe literal objects or people. Focus entirely on the sensory and emotional experience.
+Focus the music description on: tone, light quality, energy level, atmosphere, implied sounds or rhythms.
+Focus the moment description on: the actual scene, objects, people, location, activity.
 
-Output exactly 1–2 sentences, max 30 words. Write as if describing a feeling to a music composer.
+Example for a rainy window at night:
+{"music": "Soft melancholic isolation, dim blue-grey light, hushed stillness with slow pulsing quality.", "moment": "A rain-streaked window at night, city lights blurred through the glass."}
 
-Example: "Soft melancholic isolation, dim blue-grey light filtering through rain, hushed stillness with a slow pulsing quality."`
+Respond with ONLY the JSON object, no markdown or other text.`
 
 export async function POST(request: NextRequest) {
   try {
@@ -62,7 +65,7 @@ export async function POST(request: NextRequest) {
     // Call Claude haiku with vision
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 150,
+      max_tokens: 300,
       system: SYSTEM_PROMPT,
       messages: [
         {
@@ -82,7 +85,7 @@ export async function POST(request: NextRequest) {
             },
             {
               type: 'text',
-              text: 'Describe this image as a feeling for music composition.',
+              text: 'Generate both music and moment descriptions for this photo.',
             },
           ],
         },
@@ -95,12 +98,54 @@ export async function POST(request: NextRequest) {
       throw new Error('No text response from Claude')
     }
 
-    const description = textContent.text.trim()
+    // Parse JSON response
+    let descriptions
+    try {
+      descriptions = JSON.parse(textContent.text.trim())
+    } catch {
+      console.error('[describe-image] Failed to parse Claude response:', textContent.text)
+      throw new Error('Invalid response format from Claude')
+    }
 
-    console.log('[describe-image] Generated description:', description)
+    const musicDescription = descriptions.music?.trim()
+    const momentDescription = descriptions.moment?.trim()
+
+    if (!musicDescription || !momentDescription) {
+      throw new Error('Missing music or moment description in Claude response')
+    }
+
+    console.log('[describe-image] Music description:', musicDescription)
+    console.log('[describe-image] Moment description:', momentDescription)
+
+    // Upload image to Supabase Storage
+    console.log('[describe-image] Uploading image to Supabase Storage')
+    const supabase = await createServerSupabaseClient()
+    const imageBuffer = Buffer.from(image, 'base64')
+    const imageFileName = `covers/${Date.now()}.jpg`
+
+    const { error: uploadError } = await supabase.storage
+      .from('audio-files')
+      .upload(imageFileName, imageBuffer, {
+        contentType: 'image/jpeg',
+        upsert: false,
+      })
+
+    if (uploadError) {
+      console.error('[describe-image] Supabase storage error:', uploadError)
+      throw new Error('Failed to upload image to storage')
+    }
+
+    // Get public URL
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from('audio-files').getPublicUrl(imageFileName)
+
+    console.log('[describe-image] Image uploaded:', publicUrl)
 
     return NextResponse.json({
-      description,
+      musicDescription,
+      momentDescription,
+      imageUrl: publicUrl,
     })
   } catch (error) {
     console.error('[describe-image] Error:', error)

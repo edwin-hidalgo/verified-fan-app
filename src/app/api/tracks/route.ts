@@ -250,6 +250,8 @@ export async function POST(request: NextRequest) {
         sync_price_usd: trackData.sync_price_usd || null,
         commercial_use_allowed: trackData.commercial_use_allowed || false,
         commercial_use_revenue_share_pct: trackData.commercial_use_revenue_share_pct || 0,
+        cover_image_url: trackData.cover_image_url || null,
+        moment_description: trackData.moment_description || null,
         ipfs_metadata_cid: ipfsMetadataCid,
         registration_status: 'registering',
       })
