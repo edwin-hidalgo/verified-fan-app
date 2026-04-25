@@ -11,6 +11,7 @@ interface Track {
   genre: string
   duration_seconds: number
   audio_file_url: string
+  cover_image_url: string | null
   ai_origin: 'human' | 'ai_assisted' | 'ai_generated'
   ai_training_allowed: boolean
   sync_allowed: boolean
@@ -184,6 +185,15 @@ export default function CatalogPage() {
                 onClick={() => router.push(`/track/${track.id}`)}
                 className="group bg-gray-900/50 border border-gray-800 rounded-lg p-4 hover:bg-gray-900 hover:border-gray-700 transition text-left h-full flex flex-col"
               >
+                {/* Cover Image */}
+                {track.cover_image_url && (
+                  <img
+                    src={track.cover_image_url}
+                    alt={track.title}
+                    className="w-full h-40 object-cover rounded-lg mb-3 border border-gray-800"
+                  />
+                )}
+
                 {/* Audio Preview */}
                 <audio
                   src={track.audio_file_url}

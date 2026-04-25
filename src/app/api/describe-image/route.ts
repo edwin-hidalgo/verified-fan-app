@@ -25,17 +25,19 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
-const SYSTEM_PROMPT = `You are analyzing a photo and generating two complementary descriptions.
+const SYSTEM_PROMPT = `You are analyzing a photo and generating complementary descriptions plus a music style suggestion.
 
-Return a JSON object with exactly two keys:
+Return a JSON object with exactly three keys:
 - "music": 1-2 sentences, max 30 words, emotional/atmospheric ONLY. NO literal objects or people. For a music composer.
 - "moment": 1-2 sentences, plain English. What is literally in the photo — who/what/where. For the person who took it.
+- "style": A specific music genre or style in 2-4 words. Be specific (e.g., "melancholic indie folk", "warm jazz trio", "dark ambient drone", "cozy lo-fi", "hyperpop energy") NOT vague ("happy", "sad").
 
 Focus the music description on: tone, light quality, energy level, atmosphere, implied sounds or rhythms.
 Focus the moment description on: the actual scene, objects, people, location, activity.
+Focus the style suggestion on: a real music genre that matches the mood and feeling. Current genres: ambient, lo-fi, cinematic, upbeat, jazz, folk, dark, classical, electronic, hyperpop, indie, experimental, etc.
 
 Example for a rainy window at night:
-{"music": "Soft melancholic isolation, dim blue-grey light, hushed stillness with slow pulsing quality.", "moment": "A rain-streaked window at night, city lights blurred through the glass."}
+{"music": "Soft melancholic isolation, dim blue-grey light, hushed stillness with slow pulsing quality.", "moment": "A rain-streaked window at night, city lights blurred through the glass.", "style": "melancholic indie folk"}
 
 Respond with ONLY the JSON object, no markdown or other text.`
 
@@ -114,13 +116,15 @@ export async function POST(request: NextRequest) {
 
     const musicDescription = descriptions.music?.trim()
     const momentDescription = descriptions.moment?.trim()
+    const suggestedStyle = descriptions.style?.trim()
 
-    if (!musicDescription || !momentDescription) {
-      throw new Error('Missing music or moment description in Claude response')
+    if (!musicDescription || !momentDescription || !suggestedStyle) {
+      throw new Error('Missing music, moment, or style description in Claude response')
     }
 
     console.log('[describe-image] Music description:', musicDescription)
     console.log('[describe-image] Moment description:', momentDescription)
+    console.log('[describe-image] Suggested style:', suggestedStyle)
 
     // Upload image to Supabase Storage
     console.log('[describe-image] Uploading image to Supabase Storage')
@@ -150,6 +154,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       musicDescription,
       momentDescription,
+      suggestedStyle,
       imageUrl: publicUrl,
     })
   } catch (error) {

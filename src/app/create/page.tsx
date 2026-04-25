@@ -4,11 +4,19 @@ import { useRequireAuth } from '@/lib/hooks/useAuthedUser'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
-type Vibe = 'ambient' | 'lofi' | 'cinematic' | 'upbeat' | 'ethereal'
+const DURATION_OPTIONS = [
+  { label: 'Snippet', seconds: 15 },
+  { label: 'Short', seconds: 30 },
+  { label: '1 min', seconds: 60 },
+  { label: 'Full', seconds: 180 },
+]
+
+const QUICK_STYLES = ['ambient', 'lo-fi', 'cinematic', 'jazz', 'folk', 'dark']
 
 interface GenerationState {
   description: string
-  vibe: Vibe
+  style: string
+  duration: number
   isGenerating: boolean
   generatedAudioUrl: string | null
   predictionId: string | null
@@ -18,6 +26,7 @@ interface GenerationState {
   isDescribing: boolean
   momentDescription: string | null
   imageUrl: string | null
+  suggestedStyle: string | null
 }
 
 interface RegistrationState {
@@ -39,7 +48,8 @@ export default function CreatePage() {
 
   const [genState, setGenState] = useState<GenerationState>({
     description: '',
-    vibe: 'ambient',
+    style: '',
+    duration: 30,
     isGenerating: false,
     generatedAudioUrl: null,
     predictionId: null,
@@ -49,6 +59,7 @@ export default function CreatePage() {
     isDescribing: false,
     momentDescription: null,
     imageUrl: null,
+    suggestedStyle: null,
   })
 
   const [regState, setRegState] = useState<RegistrationState>({
@@ -153,13 +164,15 @@ export default function CreatePage() {
         throw new Error(errorData.error || 'Failed to analyze image')
       }
 
-      const { musicDescription, momentDescription, imageUrl } = await response.json()
+      const { musicDescription, momentDescription, suggestedStyle, imageUrl } = await response.json()
 
       setGenState((prev) => ({
         ...prev,
         description: musicDescription,
+        style: suggestedStyle,
         momentDescription,
         imageUrl,
+        suggestedStyle,
         isDescribing: false,
       }))
 
@@ -195,6 +208,14 @@ export default function CreatePage() {
   }
 
   const handleGenerateMusic = async () => {
+    if (!genState.style.trim()) {
+      setGenState((prev) => ({
+        ...prev,
+        error: 'Please select or enter a music style',
+      }))
+      return
+    }
+
     setGenState((prev) => ({
       ...prev,
       isGenerating: true,
@@ -208,7 +229,8 @@ export default function CreatePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           description: genState.description,
-          vibe: genState.vibe,
+          style: genState.style,
+          duration: genState.duration,
         }),
       })
 
@@ -260,10 +282,10 @@ export default function CreatePage() {
       // Reset audio player to allow re-play
       setAudioPlayerKey((prev) => prev + 1)
 
-      // Auto-fill title with vibe
+      // Auto-fill title with style
       setRegState((prev) => ({
         ...prev,
-        title: `Moment — ${prev.title || genState.vibe}`,
+        title: `Moment — ${prev.title || genState.style}`,
       }))
     } catch (error) {
       console.error('Generation error:', error)
@@ -344,7 +366,8 @@ export default function CreatePage() {
   const handleGenerateAnother = () => {
     setGenState({
       description: '',
-      vibe: 'ambient',
+      style: '',
+      duration: 30,
       isGenerating: false,
       generatedAudioUrl: null,
       predictionId: null,
@@ -354,6 +377,7 @@ export default function CreatePage() {
       isDescribing: false,
       momentDescription: null,
       imageUrl: null,
+      suggestedStyle: null,
     })
     setRegState({
       title: '',
@@ -474,27 +498,66 @@ export default function CreatePage() {
               />
             </div>
 
+            {/* Style Input */}
             <div>
-              <label className="block text-sm font-semibold mb-3">Pick a vibe:</label>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                {(['ambient', 'lofi', 'cinematic', 'upbeat', 'ethereal'] as Vibe[]).map(
-                  (vibe) => (
-                    <button
-                      key={vibe}
-                      onClick={() =>
-                        setGenState((prev) => ({ ...prev, vibe }))
-                      }
-                      disabled={genState.isGenerating}
-                      className={`px-3 py-2 rounded-full text-sm font-semibold transition-all ${
-                        genState.vibe === vibe
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                      } disabled:opacity-50`}
-                    >
-                      {vibe}
-                    </button>
-                  )
+              <label className="block text-sm font-semibold mb-3">
+                What style of music?
+                {genState.suggestedStyle && (
+                  <span className="text-xs text-purple-400 ml-2">✨ AI suggested</span>
                 )}
+              </label>
+              <input
+                type="text"
+                value={genState.style}
+                onChange={(e) =>
+                  setGenState((prev) => ({ ...prev, style: e.target.value }))
+                }
+                placeholder="e.g., hyperpop, dark ambient, jazz fusion, lo-fi..."
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 mb-4"
+                disabled={genState.isGenerating}
+              />
+
+              {/* Quick Style Picks */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {QUICK_STYLES.map((qStyle) => (
+                  <button
+                    key={qStyle}
+                    onClick={() =>
+                      setGenState((prev) => ({ ...prev, style: qStyle }))
+                    }
+                    disabled={genState.isGenerating}
+                    className={`px-3 py-2 rounded-full text-xs font-semibold transition ${
+                      genState.style.toLowerCase() === qStyle.toLowerCase()
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                    } disabled:opacity-50`}
+                  >
+                    {qStyle}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Duration Selector */}
+            <div>
+              <label className="block text-sm font-semibold mb-3">Duration:</label>
+              <div className="grid grid-cols-4 gap-2">
+                {DURATION_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.seconds}
+                    onClick={() =>
+                      setGenState((prev) => ({ ...prev, duration: opt.seconds }))
+                    }
+                    disabled={genState.isGenerating}
+                    className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
+                      genState.duration === opt.seconds
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                    } disabled:opacity-50`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -506,7 +569,7 @@ export default function CreatePage() {
 
             <button
               onClick={handleGenerateMusic}
-              disabled={!genState.description.trim() || genState.isGenerating}
+              disabled={!genState.description.trim() || !genState.style.trim() || genState.isGenerating}
               className="w-full py-4 bg-purple-600 text-white font-semibold rounded-full hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {genState.isGenerating ? (
