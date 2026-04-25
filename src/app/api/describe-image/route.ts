@@ -98,10 +98,15 @@ export async function POST(request: NextRequest) {
       throw new Error('No text response from Claude')
     }
 
-    // Parse JSON response
+    // Parse JSON response (strip markdown code blocks if present)
     let descriptions
     try {
-      descriptions = JSON.parse(textContent.text.trim())
+      let jsonText = textContent.text.trim()
+      // Remove markdown code block formatting if present
+      if (jsonText.startsWith('```')) {
+        jsonText = jsonText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
+      }
+      descriptions = JSON.parse(jsonText)
     } catch {
       console.error('[describe-image] Failed to parse Claude response:', textContent.text)
       throw new Error('Invalid response format from Claude')
