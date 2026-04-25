@@ -154,7 +154,15 @@ export async function POST(request: NextRequest) {
     console.log('[tracks-api] Audio file hash:', audioHash)
 
     // Upload audio file to Supabase Storage
-    const audioFileName = `${Date.now()}-${fileName}`
+    // Sanitize fileName to be safe for storage keys (alphanumeric, hyphens, underscores, dots only)
+    const sanitizedFileName = fileName
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]/g, '-') // Replace invalid chars with hyphens
+      .replace(/-+/g, '-') // Collapse multiple hyphens
+      .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens
+      .slice(0, 100) // Cap at 100 chars
+
+    const audioFileName = `${Date.now()}-${sanitizedFileName}`
     const { error: uploadError } = await supabase.storage
       .from('audio-files')
       .upload(audioFileName, audioBuffer, {
