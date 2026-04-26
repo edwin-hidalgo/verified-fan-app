@@ -1,36 +1,143 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ekos — The Music Trust Layer for the AI Era
+
+**The first rights registry where only humans can register music.**
+
+ekos combines World ID (proof-of-humanity), Story Protocol (on-chain IP ownership), and AI-native licensing to create a neutral registry for verified human creators.
+
+## The Problem
+
+- AI music supply is infinite. Verified-human music isn't.
+- $2B/year lost to streaming fraud
+- 60,000 AI tracks/day uploaded to Deezer (39% of daily intake)
+- 85% of streams on AI-generated tracks were fraudulent in 2025
+
+## The Solution
+
+**Three pillars:**
+1. **World ID Orb Verification** — Only verified humans can register works. Pseudonymity preserved, sybil attacks blocked.
+2. **Story Protocol Native** — Every work becomes an on-chain IP Asset with programmable license terms. Portable, composable, auditable.
+3. **AI-Native License Types** — First-class support for AI training licenses — the category every other registry ignores.
+
+## Core Features
+
+### Moments
+The easiest on-ramp into verified-human music. Describe what you're feeling, AI composes music, you register it on-chain with your verified identity. One flow = identity + ownership + licensing.
+
+### Register Your Music
+Upload your own track, set license terms (AI training allowed, sync rights, commercial use), register as an IP Asset on Story Protocol with machine-readable terms.
+
+### Catalog
+Browse registered moments and tracks. See who created them. License terms visible at a glance.
+
+## Tech Stack
+
+- **Frontend:** Next.js 16 (App Router), React, Tailwind CSS v4
+- **Backend:** Next.js API routes, Supabase (PostgreSQL + Storage)
+- **Blockchain:** Story Protocol SDK (IP Asset registration), Viem (ABI encoding)
+- **Identity:** World ID (Orb verification), MiniKit
+- **Audio:** Replicate API (music generation)
+- **Storage:** IPFS/Pinata (metadata), Supabase Storage (audio files)
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+- Node.js 18+
+- npm or pnpm
+
+### Setup
 
 ```bash
+# Clone the repo
+git clone https://github.com/edwin-hidalgo/verified-fan-app.git
+cd verified-fan-app
+
+# Install dependencies
+npm install
+
+# Create .env.local with required variables:
+# - NEXT_PUBLIC_DEV_MODE=true (for dev testing without World App)
+# - NEXT_PUBLIC_SUPABASE_URL
+# - NEXT_PUBLIC_SUPABASE_ANON_KEY
+# - SUPABASE_SERVICE_ROLE_KEY
+# - STORY_PRIVATE_KEY
+# - STORY_SPG_NFT_CONTRACT
+# - REPLICATE_API_TOKEN
+# - PINATA_JWT
+
+# Run development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Development Mode
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Set `NEXT_PUBLIC_DEV_MODE=true` to skip World App requirement and use mock World ID verification for local testing.
 
-## Learn More
+## Project Structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/
+├── app/                    # Next.js pages
+│   ├── page.tsx           # Landing page
+│   ├── create/            # Moments creation flow
+│   ├── register/          # Upload & register music flow
+│   ├── catalog/           # Browse registered works
+│   ├── lightpaper/        # Full thesis document
+│   └── api/               # Backend routes
+├── components/            # React components
+├── lib/
+│   ├── story/            # Story Protocol integration
+│   ├── ipfs/             # IPFS/Pinata integration
+│   ├── license/          # License term schemas & utilities
+│   └── hooks/            # React hooks (auth, etc)
+└── types/                # TypeScript definitions
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Key Routes
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `/` — Landing page
+- `/create` — Create a Moment (AI-generated music)
+- `/register` — Upload & register your music
+- `/catalog` — Browse all registered works
+- `/verify` — World ID verification
+- `/lightpaper` — Full business & technical thesis
 
-## Deploy on Vercel
+## License Terms
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Each registered work includes machine-readable license terms:
+- **AI Training Allowed** — Can AI companies use this for training?
+- **Sync Licensing** — Available for film/TV/ads at specified price?
+- **Commercial Use** — Can others monetize derivative works? Revenue share %.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Terms are stored immutably on Story Protocol and queryable by AI companies and music supervisors.
+
+## Roadmap
+
+**Phase 1 (now):** Creator identity + works + AI-training license terms. Verified humans register, AI companies can query.
+
+**Phase 2:** Buyer flow. AI companies browse, license, and pay via USDC. Real commercial transactions.
+
+**Phase 3:** Sync licensing self-serve. Music supervisors query the registry at their price point.
+
+**Phase 4:** Verified listeners. User-centric streaming payments, direct fan tips, sybil-resistant metrics.
+
+**Phase 5:** Usage ingestion. Oracles from DSPs and AI pipelines route royalties programmatically.
+
+**Phase 6:** The registry becomes a standard. Integrations with MLC, PROs, DDEX. The new default rail for music.
+
+## Deployment
+
+Live at: https://verified-fan-app.vercel.app
+
+Deployed on Vercel. Environment variables configured in Vercel dashboard.
+
+## Resources
+
+- [Lightpaper](/lightpaper) — Full thesis on the opportunity, architecture, and roadmap
+- [Story Protocol Docs](https://docs.story.foundation/)
+- [World ID Docs](https://docs.worldcoin.org/)
+
+---
+
+Built for World Build 3 Hackathon | April 23-26, 2026
