@@ -1,0 +1,19 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Vinyl disk background -->
+  <circle cx="100" cy="100" r="95" fill="#d9dbdd" stroke="#1b1b1b" stroke-width="2"/>
+
+  <!-- Vinyl grooves -->
+  <circle cx="100" cy="100" r="80" fill="none" stroke="#1b1b1b" stroke-width="1" opacity="0.3"/>
+  <circle cx="100" cy="100" r="65" fill="none" stroke="#1b1b1b" stroke-width="1" opacity="0.3"/>
+  <circle cx="100" cy="100" r="50" fill="none" stroke="#1b1b1b" stroke-width="1" opacity="0.3"/>
+  <circle cx="100" cy="100" r="35" fill="none" stroke="#1b1b1b" stroke-width="1" opacity="0.3"/>
+
+  <!-- Center label -->
+  <circle cx="100" cy="100" r="28" fill="#2e8b6f" stroke="#1b1b1b" stroke-width="1.5"/>
+
+  <!-- Center hole -->
+  <circle cx="100" cy="100" r="6" fill="#1b1b1b"/>
+
+  <!-- Subtle ekos text on label -->
+  <text x="100" y="105" font-family="Arial, sans-serif" font-size="8" font-weight="bold" fill="#1b1b1b" text-anchor="middle">ekos</text>
+</svg>

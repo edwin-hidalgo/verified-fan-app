@@ -76,16 +76,18 @@ export default function VerifyPage() {
 
       const verifyData = await verifyResponse.json()
 
-      // Store user data in localStorage
+      // Store user data in localStorage and cookies (cookies persist better in World App webview)
       localStorage.setItem('user_id', verifyData.userId)
-      localStorage.setItem(
-        'user_data',
-        JSON.stringify({
-          world_wallet_address: verifyData.walletAddress,
-          world_username: verifyData.username,
-          orb_verified: verifyData.orbVerified,
-        })
-      )
+      const userData = {
+        world_wallet_address: verifyData.walletAddress,
+        world_username: verifyData.username,
+        orb_verified: verifyData.orbVerified,
+      }
+      localStorage.setItem('user_data', JSON.stringify(userData))
+
+      // Also set cookies for better persistence in World App webview
+      document.cookie = `user_id=${encodeURIComponent(verifyData.userId)}; path=/; max-age=${7 * 24 * 60 * 60}`
+      document.cookie = `user_data=${encodeURIComponent(JSON.stringify(userData))}; path=/; max-age=${7 * 24 * 60 * 60}`
 
       console.log('[verify] World ID verification succeeded, redirecting to /register')
       router.push('/register')
@@ -98,8 +100,12 @@ export default function VerifyPage() {
 
   const handleDevModeVerification = async () => {
     try {
-      // Generate mock wallet address for dev mode
-      const mockWallet = `0x${Math.random().toString(16).slice(2, 42)}`
+      // Use consistent wallet for dev mode (per session)
+      let mockWallet = sessionStorage.getItem('dev_mode_wallet')
+      if (!mockWallet) {
+        mockWallet = `0x${Math.random().toString(16).slice(2, 42)}`
+        sessionStorage.setItem('dev_mode_wallet', mockWallet)
+      }
 
       // Call backend with mock SIWE data
       const response = await fetch('/api/world/verify', {
@@ -124,16 +130,18 @@ export default function VerifyPage() {
 
       const data = await response.json()
 
-      // Store user data in localStorage
+      // Store user data in localStorage and cookies (cookies persist better in World App webview)
       localStorage.setItem('user_id', data.userId)
-      localStorage.setItem(
-        'user_data',
-        JSON.stringify({
-          world_wallet_address: data.walletAddress,
-          world_username: data.username,
-          orb_verified: data.orbVerified,
-        })
-      )
+      const userData = {
+        world_wallet_address: data.walletAddress,
+        world_username: data.username,
+        orb_verified: data.orbVerified,
+      }
+      localStorage.setItem('user_data', JSON.stringify(userData))
+
+      // Also set cookies for better persistence in World App webview
+      document.cookie = `user_id=${encodeURIComponent(data.userId)}; path=/; max-age=${7 * 24 * 60 * 60}`
+      document.cookie = `user_data=${encodeURIComponent(JSON.stringify(userData))}; path=/; max-age=${7 * 24 * 60 * 60}`
 
       console.log('[verify] Dev mode verification succeeded, redirecting to /register')
       router.push('/register')
@@ -145,28 +153,28 @@ export default function VerifyPage() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-black px-4 py-12">
+    <div className="flex flex-col items-center justify-center min-h-screen px-4 py-12">
       <main className="w-full max-w-lg flex flex-col items-center justify-center gap-8 text-center">
         {/* Heading */}
         <div className="space-y-4">
-          <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">
+          <h1 className="text-4xl md:text-5xl font-bold text-[#1b1b1b] tracking-tight">
             Verify as a Creator
           </h1>
-          <p className="text-xl text-gray-300">
+          <p className="text-xl text-[#1b1b1b80]">
             Prove your humanity to register music IP Assets.
           </p>
         </div>
 
         {/* Description */}
-        <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-6 max-w-sm">
-          <p className="text-gray-300 leading-relaxed">
+        <div className="bg-[#fdfff8] border border-[#1b1b1b] rounded-lg p-6 max-w-sm">
+          <p className="text-[#1b1b1b80] leading-relaxed">
             Use World ID to verify you're a unique human creator. Your wallet address is tied to your World ID identity.
           </p>
         </div>
 
         {/* Error message */}
         {error && (
-          <div className="w-full bg-red-900/20 border border-red-700/50 rounded-lg p-4 text-red-300 text-sm">
+          <div className="w-full border border-[#ff2e00] rounded-lg p-4 text-[#ff2e00] text-sm">
             <p className="font-semibold mb-1">Verification Error</p>
             <p>{error}</p>
           </div>
@@ -176,22 +184,22 @@ export default function VerifyPage() {
         <button
           onClick={handleWorldIDVerify}
           disabled={isLoading}
-          className="w-full sm:w-auto px-8 py-4 bg-white text-black font-semibold rounded-full hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+          className="w-full sm:w-auto px-8 py-4 bg-[#1b1b1b] text-[#fdfff8] font-semibold rounded-lg hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
         >
           {isLoading ? 'Verifying...' : 'Verify with World ID'}
         </button>
 
         {/* Dev mode bypass */}
         {devMode && (
-          <div className="pt-4 border-t border-gray-800 w-full max-w-sm space-y-4">
-            <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-4 text-blue-300 text-sm">
+          <div className="pt-4 border-t border-[#1b1b1b] w-full max-w-sm space-y-4">
+            <div className="bg-[#fdfff8] border border-[#1b1b1b] rounded-lg p-4 text-[#1b1b1b80] text-sm">
               <p className="font-semibold mb-2">Dev Mode Active</p>
               <p>World ID verification is mocked. Use the button below to continue without World App.</p>
             </div>
             <button
               onClick={() => handleDevModeVerification()}
               disabled={isLoading}
-              className="w-full px-6 py-3 bg-blue-600/20 border border-blue-500/50 text-blue-300 font-semibold rounded-full hover:bg-blue-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 text-sm"
+              className="w-full px-6 py-3 border border-[#1b1b1b] text-[#1b1b1b] bg-transparent hover:bg-[#1b1b1b] hover:text-[#fdfff8] font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             >
               {isLoading ? 'Skipping...' : 'Skip Verification (Dev Mode)'}
             </button>

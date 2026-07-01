@@ -29,21 +29,65 @@ export default function MyTracksPage() {
   const [user, setUser] = useState<UserData | null>(null)
   const [tracks, setTracks] = useState<Track[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [debugInfo, setDebugInfo] = useState<string>('')
+  const [currentUserId, setCurrentUserId] = useState<string>('')
 
   useEffect(() => {
-    const userId = localStorage.getItem('user_id')
-    const userData = localStorage.getItem('user_data')
+    // Check for demo userId query parameter first (for debugging)
+    const params = new URLSearchParams(window.location.search)
+    const demoUserId = params.get('userId')
+
+    if (demoUserId) {
+      console.log('[my-tracks] Using demo userId:', demoUserId)
+      setCurrentUserId(demoUserId)
+      // Set a mock user for demo
+      setUser({
+        world_wallet_address: 'demo-wallet',
+        world_username: 'Demo Creator',
+        orb_verified: true,
+      })
+      fetchTracks(demoUserId)
+      return
+    }
+
+    // Try to get from localStorage first, then fallback to cookies (for World App webview persistence)
+    let userId = localStorage.getItem('user_id')
+    let userData = localStorage.getItem('user_data')
+
+    console.log('[my-tracks] localStorage userId:', userId)
+    console.log('[my-tracks] localStorage userData:', userData)
+
+    if (!userId) {
+      // Fallback to cookies
+      const cookies = document.cookie.split('; ').reduce((acc, cookie) => {
+        const [key, value] = cookie.split('=', 2) // Split only on first '='
+        if (key && value) {
+          acc[key] = decodeURIComponent(value)
+        }
+        return acc
+      }, {} as Record<string, string>)
+      console.log('[my-tracks] parsed cookies:', cookies)
+      userId = cookies.user_id || null
+      userData = cookies.user_data || null
+      console.log('[my-tracks] After cookie fallback - userId:', userId)
+    }
 
     if (userId && userData) {
       try {
+        setCurrentUserId(userId)
         setUser(JSON.parse(userData))
+        console.log('[my-tracks] Fetching tracks for userId:', userId)
         // Fetch creator's tracks
         fetchTracks(userId)
       } catch (e) {
+        console.error('[my-tracks] Error parsing userData:', e)
+        setDebugInfo('✗ Error parsing user data')
         setUser(null)
         setIsLoading(false)
       }
     } else {
+      console.log('[my-tracks] No userId or userData available')
+      setDebugInfo('✗ No userId or userData in localStorage/cookies')
       setIsLoading(false)
     }
   }, [])
@@ -51,12 +95,19 @@ export default function MyTracksPage() {
   const fetchTracks = async (userId: string) => {
     try {
       const response = await fetch(`/api/creators/${userId}/tracks`)
+      const data = await response.json()
+      console.log('[my-tracks] API response:', data)
       if (response.ok) {
-        const data = await response.json()
         setTracks(data.tracks || [])
+        setDebugInfo(`✓ UserId: ${userId} | Found ${data.tracks?.length || 0} tracks`)
+      } else {
+        console.error('[my-tracks] API error:', data)
+        const errorMsg = data.details ? `${data.error} (${data.details})` : data.error || 'Unknown error'
+        setDebugInfo(`✗ UserId: ${userId} | API Error: ${errorMsg}`)
       }
     } catch (error) {
       console.error('Failed to fetch tracks:', error)
+      setDebugInfo(`✗ UserId: ${userId} | Fetch error: ${error instanceof Error ? error.message : 'Unknown'}`)
     } finally {
       setIsLoading(false)
     }
@@ -132,6 +183,13 @@ export default function MyTracksPage() {
   return (
     <div className="flex flex-col items-start justify-start min-h-screen bg-black px-4 py-12">
       <main className="w-full max-w-6xl mx-auto flex flex-col gap-8">
+        {/* Debug Info */}
+        {debugInfo && (
+          <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-sm">
+            <p className="text-gray-300">Debug: {debugInfo}</p>
+          </div>
+        )}
+
         {/* Header */}
         <div className="space-y-6">
           <div className="space-y-4">

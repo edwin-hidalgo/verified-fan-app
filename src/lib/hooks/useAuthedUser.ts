@@ -18,8 +18,20 @@ export function useAuthedUser() {
   useEffect(() => {
     const checkAuth = () => {
       try {
-        const userId = localStorage.getItem('user_id')
-        const userDataStr = localStorage.getItem('user_data')
+        // Try localStorage first, then fallback to cookies (for World App webview persistence)
+        let userId = localStorage.getItem('user_id')
+        let userDataStr = localStorage.getItem('user_data')
+
+        if (!userId) {
+          // Fallback to cookies
+          const cookies = document.cookie.split('; ').reduce((acc, cookie) => {
+            const [key, value] = cookie.split('=')
+            acc[key] = decodeURIComponent(value)
+            return acc
+          }, {} as Record<string, string>)
+          userId = cookies.user_id || null
+          userDataStr = cookies.user_data || null
+        }
 
         if (!userId) {
           setUser(null)

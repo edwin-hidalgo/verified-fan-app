@@ -133,11 +133,11 @@ export default function TrackDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-black">
+      <div className="flex items-center justify-center min-h-screen bg-[#fdfff8]">
         <div className="flex gap-2">
-          <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
-          <div className="w-2 h-2 bg-white rounded-full animate-bounce delay-100"></div>
-          <div className="w-2 h-2 bg-white rounded-full animate-bounce delay-200"></div>
+          <div className="w-2 h-2 bg-[#1b1b1b] rounded-full animate-bounce"></div>
+          <div className="w-2 h-2 bg-[#1b1b1b] rounded-full animate-bounce delay-100"></div>
+          <div className="w-2 h-2 bg-[#1b1b1b] rounded-full animate-bounce delay-200"></div>
         </div>
       </div>
     )
@@ -145,13 +145,13 @@ export default function TrackDetailPage() {
 
   if (error || !track) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-black px-4">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#fdfff8] px-4">
         <div className="text-center max-w-lg">
-          <h1 className="text-3xl font-bold text-red-400 mb-4">Error</h1>
-          <p className="text-gray-300 mb-6">{error || 'Track not found'}</p>
+          <h1 className="text-3xl font-bold text-[#ff2e00] mb-4">Error</h1>
+          <p className="text-[#1b1b1b80] mb-6">{error || 'Track not found'}</p>
           <button
             onClick={() => router.push('/catalog')}
-            className="px-8 py-3 bg-white text-black font-semibold rounded-full hover:bg-gray-100"
+            className="px-8 py-3 bg-[#1b1b1b] hover:opacity-80 text-[#fdfff8] font-semibold rounded-full"
           >
             Back to Catalog
           </button>
@@ -161,12 +161,12 @@ export default function TrackDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white py-12 px-4">
+    <div className="min-h-screen bg-[#fdfff8] py-12 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Back button */}
         <button
           onClick={() => router.push('/catalog')}
-          className="text-gray-400 hover:text-white mb-8 font-semibold"
+          className="text-[#1b1b1b80] hover:text-[#1b1b1b] mb-8 font-semibold"
         >
           ← Back to Catalog
         </button>
@@ -175,7 +175,7 @@ export default function TrackDetailPage() {
           {/* Left: Audio Player & Info */}
           <div className="md:col-span-2 space-y-6">
             {/* Audio Player */}
-            <Card className="p-8 bg-gray-900 border-gray-800">
+            <Card className="p-8 bg-[#fdfff8] border border-[#1b1b1b] rounded-lg">
               {/* Cover Image */}
               {track.cover_image_url && (
                 <img
@@ -195,22 +195,22 @@ export default function TrackDetailPage() {
               {/* Track Info */}
               <div className="space-y-6">
                 <div>
-                  <p className="text-gray-400 text-sm mb-1">Title</p>
-                  <h1 className="text-4xl font-bold">{track.title}</h1>
+                  <p className="text-[#1b1b1b80] text-sm mb-1">Title</p>
+                  <h1 className="text-4xl font-bold text-[#1b1b1b]">{track.title}</h1>
                 </div>
 
                 {/* Moment Description */}
                 {track.moment_description && (
                   <div>
-                    <p className="text-gray-400 text-sm mb-2">The Moment</p>
-                    <p className="text-gray-300 italic text-lg">"{track.moment_description}"</p>
+                    <p className="text-[#1b1b1b80] text-sm mb-2">The Moment</p>
+                    <p className="text-[#1b1b1b] italic text-lg">"{track.moment_description}"</p>
                   </div>
                 )}
 
                 {/* Share Button */}
                 <button
                   onClick={handleShare}
-                  className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-full transition-colors w-full"
+                  className="px-6 py-3 bg-[#1b1b1b] hover:opacity-80 text-[#fdfff8] font-semibold rounded-full transition-colors w-full"
                 >
                   📤 Share This Moment
                 </button>
@@ -228,24 +228,24 @@ export default function TrackDetailPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-gray-400 text-sm mb-1">Artist</p>
-                    <p className="font-semibold">{track.artist_name}</p>
+                    <p className="text-[#1b1b1b80] text-sm mb-1">Artist</p>
+                    <p className="font-semibold text-[#1b1b1b]">{track.artist_name}</p>
                   </div>
                   <div>
-                    <p className="text-gray-400 text-sm mb-1">Genre</p>
-                    <p className="font-semibold">{track.genre || 'N/A'}</p>
+                    <p className="text-[#1b1b1b80] text-sm mb-1">Genre</p>
+                    <p className="font-semibold text-[#1b1b1b]">{track.genre || 'N/A'}</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-gray-400 text-sm mb-1">Duration</p>
-                    <p className="font-semibold">
+                    <p className="text-[#1b1b1b80] text-sm mb-1">Duration</p>
+                    <p className="font-semibold text-[#1b1b1b]">
                       {Math.floor(track.duration_seconds / 60)}:{String(track.duration_seconds % 60).padStart(2, '0')}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-400 text-sm mb-1">Status</p>
+                    <p className="text-[#1b1b1b80] text-sm mb-1">Status</p>
                     <p className="font-semibold capitalize">
                       {track.registration_status === 'registered' ? (
                         <span className="text-green-400">✓ Registered</span>
@@ -258,20 +258,20 @@ export default function TrackDetailPage() {
 
                 {track.isrc && (
                   <div>
-                    <p className="text-gray-400 text-sm mb-1">ISRC</p>
-                    <p className="font-mono text-sm">{track.isrc}</p>
+                    <p className="text-[#1b1b1b80] text-sm mb-1">ISRC</p>
+                    <p className="font-mono text-sm text-[#1b1b1b]">{track.isrc}</p>
                   </div>
                 )}
 
                 {track.release_date && (
                   <div>
-                    <p className="text-gray-400 text-sm mb-1">Release Date</p>
-                    <p className="font-semibold">{new Date(track.release_date).toLocaleDateString()}</p>
+                    <p className="text-[#1b1b1b80] text-sm mb-1">Release Date</p>
+                    <p className="font-semibold text-[#1b1b1b]">{new Date(track.release_date).toLocaleDateString()}</p>
                   </div>
                 )}
 
                 <div>
-                  <p className="text-gray-400 text-sm mb-2">Creation Method</p>
+                  <p className="text-[#1b1b1b80] text-sm mb-2">Creation Method</p>
                   <span className={`px-3 py-1 rounded text-sm font-semibold ${
                     track.ai_origin === 'human' ? 'bg-green-600/20 text-green-400' :
                     track.ai_origin === 'ai_assisted' ? 'bg-yellow-600/20 text-yellow-400' :
@@ -287,19 +287,19 @@ export default function TrackDetailPage() {
 
             {/* Creator Info */}
             {creator && (
-              <Card className="p-8 bg-gray-900 border-gray-800">
+              <Card className="p-8 bg-[#fdfff8] border border-[#1b1b1b] rounded-lg">
                 <div className="flex items-start gap-4">
                   <div className="flex-1">
-                    <p className="text-gray-400 text-sm mb-2">Created by</p>
-                    <h3 className="text-2xl font-bold flex items-center gap-2">
+                    <p className="text-[#1b1b1b80] text-sm mb-2">Created by</p>
+                    <h3 className="text-2xl font-bold flex items-center gap-2 text-[#1b1b1b]">
                       {creator.world_username || creator.world_wallet_address.slice(0, 10) + '...'}
                       {creator.orb_verified && (
-                        <span className="text-xs bg-blue-600 px-2 py-1 rounded-full font-semibold">
+                        <span className="text-xs border border-[#1b1b1b] text-[#1b1b1b] text-xs px-2 py-0.5 rounded font-semibold">
                           ✓ Verified Human
                         </span>
                       )}
                     </h3>
-                    <p className="text-gray-400 text-sm font-mono mt-1">
+                    <p className="text-[#1b1b1b80] text-sm font-mono mt-1">
                       {creator.world_wallet_address}
                     </p>
                   </div>
@@ -309,13 +309,13 @@ export default function TrackDetailPage() {
 
             {/* Royalty Splits */}
             {track.splits && track.splits.length > 0 && (
-              <Card className="p-8 bg-gray-900 border-gray-800">
-                <h2 className="text-xl font-bold mb-4">Royalty Splits</h2>
+              <Card className="p-8 bg-[#fdfff8] border border-[#1b1b1b] rounded-lg">
+                <h2 className="text-xl font-bold mb-4 text-[#1b1b1b]">Royalty Splits</h2>
                 <div className="space-y-3">
                   {track.splits.map((split: any, idx: number) => (
-                    <div key={idx} className="flex justify-between items-center p-3 bg-gray-800/50 rounded">
-                      <p className="text-sm font-mono text-gray-400">{split.recipient}</p>
-                      <p className="font-semibold">{split.percentage}%</p>
+                    <div key={idx} className="flex justify-between items-center p-3 bg-[#1b1b1b]/5 rounded">
+                      <p className="text-sm font-mono text-[#1b1b1b80]">{split.recipient}</p>
+                      <p className="font-semibold text-[#1b1b1b]">{split.percentage}%</p>
                     </div>
                   ))}
                 </div>
@@ -326,46 +326,46 @@ export default function TrackDetailPage() {
           {/* Right: License Terms & Links */}
           <div className="space-y-6">
             {/* License Terms */}
-            <Card className="p-6 bg-gray-900 border-gray-800">
-              <h2 className="text-lg font-bold mb-4">License Terms</h2>
+            <Card className="p-6 bg-[#fdfff8] border border-[#1b1b1b] rounded-lg">
+              <h2 className="text-lg font-bold mb-4 text-[#1b1b1b]">License Terms</h2>
 
               <div className="space-y-3">
                 {track.ai_training_allowed ? (
-                  <div className="p-3 bg-green-600/10 border border-green-600/30 rounded">
-                    <p className="text-sm font-semibold text-green-400">✓ AI Training Allowed</p>
+                  <div className="border border-[#2e8b6f] rounded-lg p-3 text-[#2e8b6f]">
+                    <p className="text-sm font-semibold">✓ AI Training Allowed</p>
                     {track.ai_training_price_usd && (
-                      <p className="text-xs text-green-300 mt-1">${track.ai_training_price_usd} per license</p>
+                      <p className="text-xs mt-1">${track.ai_training_price_usd} per license</p>
                     )}
                   </div>
                 ) : (
-                  <div className="p-3 bg-red-600/10 border border-red-600/30 rounded">
-                    <p className="text-sm font-semibold text-red-400">✗ AI Training Not Allowed</p>
+                  <div className="border border-[#1b1b1b80] rounded-lg p-3 text-[#1b1b1b80]">
+                    <p className="text-sm font-semibold">✗ AI Training Not Allowed</p>
                   </div>
                 )}
 
                 {track.sync_allowed ? (
-                  <div className="p-3 bg-green-600/10 border border-green-600/30 rounded">
-                    <p className="text-sm font-semibold text-green-400">✓ Sync Licensing Available</p>
+                  <div className="border border-[#2e8b6f] rounded-lg p-3 text-[#2e8b6f]">
+                    <p className="text-sm font-semibold">✓ Sync Licensing Available</p>
                     {track.sync_price_usd && (
-                      <p className="text-xs text-green-300 mt-1">${track.sync_price_usd} per license</p>
+                      <p className="text-xs mt-1">${track.sync_price_usd} per license</p>
                     )}
                   </div>
                 ) : (
-                  <div className="p-3 bg-red-600/10 border border-red-600/30 rounded">
-                    <p className="text-sm font-semibold text-red-400">✗ No Sync Licenses</p>
+                  <div className="border border-[#1b1b1b80] rounded-lg p-3 text-[#1b1b1b80]">
+                    <p className="text-sm font-semibold">✗ No Sync Licenses</p>
                   </div>
                 )}
 
                 {track.commercial_use_allowed ? (
-                  <div className="p-3 bg-green-600/10 border border-green-600/30 rounded">
-                    <p className="text-sm font-semibold text-green-400">✓ Commercial Use Allowed</p>
-                    <p className="text-xs text-green-300 mt-1">
+                  <div className="border border-[#2e8b6f] rounded-lg p-3 text-[#2e8b6f]">
+                    <p className="text-sm font-semibold">✓ Commercial Use Allowed</p>
+                    <p className="text-xs mt-1">
                       Creator gets {track.commercial_use_revenue_share_pct}% revenue
                     </p>
                   </div>
                 ) : (
-                  <div className="p-3 bg-red-600/10 border border-red-600/30 rounded">
-                    <p className="text-sm font-semibold text-red-400">✗ No Commercial Use</p>
+                  <div className="border border-[#1b1b1b80] rounded-lg p-3 text-[#1b1b1b80]">
+                    <p className="text-sm font-semibold">✗ No Commercial Use</p>
                   </div>
                 )}
               </div>
@@ -373,18 +373,18 @@ export default function TrackDetailPage() {
 
             {/* Story Protocol Links */}
             {track.story_ip_id && (
-              <Card className="p-6 bg-gray-900 border-gray-800">
-                <h2 className="text-lg font-bold mb-4">On Chain</h2>
+              <Card className="p-6 bg-[#fdfff8] border border-[#1b1b1b] rounded-lg">
+                <h2 className="text-lg font-bold mb-4 text-[#1b1b1b]">On Chain</h2>
 
                 <div className="space-y-3">
                   <a
                     href={`https://aeneid.storyscan.xyz/ipa/${track.story_ip_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block p-3 bg-blue-600/10 border border-blue-600/30 rounded hover:bg-blue-600/20 transition"
+                    className="block border border-[#1b1b1b] rounded-lg p-3 hover:bg-[#1b1b1b] hover:text-[#fdfff8] transition"
                   >
-                    <p className="text-sm font-semibold text-blue-400">View IP Asset</p>
-                    <p className="text-xs text-blue-300 mt-1 font-mono truncate">{track.story_ip_id}</p>
+                    <p className="text-sm font-semibold text-[#1b1b1b]">View IP Asset</p>
+                    <p className="text-xs text-[#1b1b1b80] mt-1 font-mono truncate">{track.story_ip_id}</p>
                   </a>
 
                   {track.ipfs_metadata_cid && (
@@ -392,10 +392,10 @@ export default function TrackDetailPage() {
                       href={`https://gateway.pinata.cloud/ipfs/${track.ipfs_metadata_cid}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block p-3 bg-purple-600/10 border border-purple-600/30 rounded hover:bg-purple-600/20 transition"
+                      className="block border border-[#1b1b1b] rounded-lg p-3 hover:bg-[#1b1b1b] hover:text-[#fdfff8] transition"
                     >
-                      <p className="text-sm font-semibold text-purple-400">View Metadata (IPFS)</p>
-                      <p className="text-xs text-purple-300 mt-1 font-mono truncate">{track.ipfs_metadata_cid}</p>
+                      <p className="text-sm font-semibold text-[#1b1b1b]">View Metadata (IPFS)</p>
+                      <p className="text-xs text-[#1b1b1b80] mt-1 font-mono truncate">{track.ipfs_metadata_cid}</p>
                     </a>
                   )}
                 </div>
@@ -403,21 +403,21 @@ export default function TrackDetailPage() {
             )}
 
             {/* File Info */}
-            <Card className="p-6 bg-gray-900 border-gray-800">
-              <h2 className="text-lg font-bold mb-4">File</h2>
+            <Card className="p-6 bg-[#fdfff8] border border-[#1b1b1b] rounded-lg">
+              <h2 className="text-lg font-bold mb-4 text-[#1b1b1b]">File</h2>
 
               <div className="space-y-3 text-xs">
                 <div>
-                  <p className="text-gray-400 mb-1">SHA256 Hash</p>
-                  <p className="font-mono text-gray-300 break-all">{track.audio_file_hash}</p>
+                  <p className="text-[#1b1b1b80] mb-1">SHA256 Hash</p>
+                  <p className="font-mono text-[#1b1b1b] break-all">{track.audio_file_hash}</p>
                 </div>
 
-                <div className="pt-3 border-t border-gray-700">
-                  <p className="text-gray-400 mb-2">Download</p>
+                <div className="pt-3 border-t border-[#1b1b1b]/10">
+                  <p className="text-[#1b1b1b80] mb-2">Download</p>
                   <a
                     href={track.audio_file_url}
                     download
-                    className="inline-block px-3 py-2 bg-white text-black font-semibold rounded hover:bg-gray-100 text-xs"
+                    className="inline-block px-3 py-2 bg-[#1b1b1b] text-[#fdfff8] font-semibold rounded hover:opacity-80 text-xs"
                   >
                     Download Audio
                   </a>

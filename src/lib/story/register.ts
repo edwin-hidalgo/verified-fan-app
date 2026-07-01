@@ -1,5 +1,6 @@
 import 'server-only'
 
+import crypto from 'crypto'
 import { getStoryClient, getServiceWalletAddress } from './client'
 import { MusicIPMetadata } from '../license/schema'
 import { uploadJSON } from '../ipfs/pinata'
@@ -83,8 +84,12 @@ export async function registerMusicIP(
     }
 
     const ipfsMetadataHash = await uploadJSON(ipfsMetadata)
+    if (!ipfsMetadataHash || ipfsMetadataHash.trim() === '') {
+      throw new Error('[story-register] IPFS upload returned empty hash')
+    }
     const ipfsMetadataURI = `ipfs://${ipfsMetadataHash}`
     console.log('[story-register] Metadata uploaded to IPFS:', ipfsMetadataURI)
+    console.log('[story-register] ipfsMetadataURI is valid:', ipfsMetadataURI.startsWith('ipfs://'))
 
     console.log('[story-register] Calling registerIpAsset with PIL terms')
     console.log('[story-register] Full registration payload:', {
@@ -93,9 +98,23 @@ export async function registerMusicIP(
         spgNftContract,
         recipient: nftRecipient,
       },
-      ipMetadataURI: ipfsMetadataURI,
+      ipMetadata: {
+        ipMetadataURI: ipfsMetadataURI,
+      },
       licenseTermsData: [{ terms: pilTerms }],
     })
+
+    // Validate ipMetadata before calling SDK
+    if (!ipfsMetadataURI || !ipfsMetadataURI.startsWith('ipfs://')) {
+      throw new Error(`[story-register] Invalid ipfsMetadataURI: "${ipfsMetadataURI}"`)
+    }
+
+    console.log('[story-register] About to call registerIpAsset with ipMetadataURI:', ipfsMetadataURI)
+
+    // Compute ipMetadataHash as valid bytes32
+    const metadataJsonStr = JSON.stringify(ipfsMetadata)
+    const metadataHashHex = `0x${crypto.createHash('sha256').update(metadataJsonStr).digest('hex')}` as `0x${string}`
+    console.log('[story-register] Computed ipMetadataHash:', metadataHashHex)
 
     let result
     try {
@@ -105,7 +124,10 @@ export async function registerMusicIP(
           spgNftContract: spgNftContract,
           recipient: nftRecipient,
         },
-        ipMetadataURI: ipfsMetadataURI,
+        ipMetadata: {
+          ipMetadataURI: ipfsMetadataURI,
+          ipMetadataHash: metadataHashHex,
+        },
         // Attach PIL terms to the IP Asset
         licenseTermsData: [
           {

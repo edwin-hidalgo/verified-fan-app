@@ -73,6 +73,12 @@ export function TrackUploadForm({ userId, username }: TrackUploadFormProps) {
     const file = e.target.files?.[0]
     if (file) {
       handleInputChange('audio_file', file)
+      // Auto-populate title with filename (minus extension) if title is empty
+      if (!formData.title.trim()) {
+        const filename = file.name
+        const titleWithoutExtension = filename.replace(/\.[^/.]+$/, '')
+        handleInputChange('title', titleWithoutExtension)
+      }
     }
   }
 
