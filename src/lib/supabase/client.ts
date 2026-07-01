@@ -12,7 +12,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 let supabaseClient: ReturnType<typeof createBrowserClient> | null = null
 
-export function getSupabaseClient() {
+export function getSupabaseClient(): ReturnType<typeof createBrowserClient> {
   if (!supabaseUrl || !supabaseAnonKey) {
     console.warn(
       'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY'

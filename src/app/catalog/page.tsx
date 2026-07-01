@@ -78,17 +78,11 @@ export default function CatalogPage() {
     setFilteredTracks(filtered)
   }, [filter, tracks])
 
-  // Record play when track starts
+  // Record play when track starts (open to everyone)
   const recordPlay = async (trackId: string) => {
-    const userId = localStorage.getItem('user_id')
-    if (!userId) return
-
     try {
       const response = await fetch(`/api/tracks/${trackId}/play`, {
         method: 'POST',
-        headers: {
-          'x-user-id': userId,
-        },
       })
 
       if (response.ok) {

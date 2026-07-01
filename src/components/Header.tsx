@@ -1,12 +1,27 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import type { User } from '@supabase/supabase-js'
+import { getSupabaseClient } from '@/lib/supabase/client'
 
 export default function Header() {
   const pathname = usePathname()
+  const router = useRouter()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [user, setUser] = useState<User | null>(null)
+
+  useEffect(() => {
+    const supabase = getSupabaseClient()
+    supabase.auth
+      .getUser()
+      .then((res: { data: { user: User | null } }) => setUser(res.data.user ?? null))
+    const listener = supabase.auth.onAuthStateChange(
+      (_event: string, session: { user: User } | null) => setUser(session?.user ?? null)
+    )
+    return () => listener.data.subscription.unsubscribe()
+  }, [])
 
   const isActive = (href: string) => pathname === href
 
@@ -14,7 +29,18 @@ export default function Header() {
     { href: '/', label: 'Home' },
     { href: '/catalog', label: 'Feed' },
     { href: '/create', label: 'Create' },
+    ...(user ? [{ href: '/my-tracks', label: 'My Tracks' }] : []),
   ]
+
+  const displayName =
+    (user?.user_metadata?.display_name as string) || user?.email?.split('@')[0] || ''
+
+  const handleSignOut = async () => {
+    await getSupabaseClient().auth.signOut()
+    setIsMobileMenuOpen(false)
+    router.push('/')
+    router.refresh()
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-[#1b1b1b] bg-[#d9dbdd]">
@@ -23,7 +49,6 @@ export default function Header() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
             <svg className="w-8 h-8" viewBox="0 0 100 100" fill="none">
-              {/* Outer rings */}
               <ellipse cx="50" cy="50" rx="40" ry="32" stroke="white" strokeWidth="3.5" />
               <ellipse cx="50" cy="50" rx="30" ry="24" stroke="white" strokeWidth="3.5" />
               <ellipse cx="50" cy="50" rx="20" ry="16" stroke="white" strokeWidth="3.5" />
@@ -47,6 +72,24 @@ export default function Header() {
                 {link.label}
               </Link>
             ))}
+            {user ? (
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-[#1b1b1b80]">{displayName}</span>
+                <button
+                  onClick={handleSignOut}
+                  className="text-sm font-medium text-[#1b1b1b80] hover:text-[#1b1b1b]"
+                >
+                  Sign out
+                </button>
+              </div>
+            ) : (
+              <Link
+                href="/login"
+                className="text-sm font-semibold text-[#1b1b1b] hover:opacity-70"
+              >
+                Sign in
+              </Link>
+            )}
           </nav>
 
           {/* Mobile Menu Button */}
@@ -84,6 +127,22 @@ export default function Header() {
                 {link.label}
               </Link>
             ))}
+            {user ? (
+              <button
+                onClick={handleSignOut}
+                className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-[#1b1b1b80] hover:text-[#1b1b1b]"
+              >
+                Sign out ({displayName})
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block px-3 py-2 rounded-md text-base font-semibold text-[#1b1b1b]"
+              >
+                Sign in
+              </Link>
+            )}
           </nav>
         )}
       </div>

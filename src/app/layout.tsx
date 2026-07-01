@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { Roboto_Flex, Roboto_Mono } from 'next/font/google'
-import { MiniKitProvider } from '@/components/MiniKitProvider'
 import Header from '@/components/Header'
 import './globals.css'
 
@@ -15,9 +14,9 @@ const robotoMono = Roboto_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'ekos — Music Trust Layer for the AI Era',
+  title: 'ekos — moments, made into music',
   description:
-    'Register music with on-chain provenance and verified engagement. Eradicate streaming fraud. Licensed by verified humans.',
+    'Turn a photo or a feeling into an original AI-composed moment. Create and stream music made from your world.',
   metadataBase: new URL('http://localhost:3000'),
 }
 
@@ -32,12 +31,10 @@ export default function RootLayout({
       className={`${robotoFlex.variable} ${robotoMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground" suppressHydrationWarning>
-        <MiniKitProvider>
-          <Header />
-          <main className="flex-1">
-            {children}
-          </main>
-        </MiniKitProvider>
+        <Header />
+        <main className="flex-1">
+          {children}
+        </main>
       </body>
     </html>
   )

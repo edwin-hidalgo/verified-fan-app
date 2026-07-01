@@ -1,9 +1,7 @@
 'use client'
 
-import { useRequireAuth } from '@/lib/hooks/useAuthedUser'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { MiniKit } from '@worldcoin/minikit-js'
 
 const DURATION_OPTIONS = [
   { label: 'Snippet', seconds: 15 },
@@ -32,12 +30,6 @@ interface GenerationState {
 
 interface RegistrationState {
   title: string
-  aiTrainingAllowed: boolean
-  aiTrainingPrice: number | null
-  syncAllowed: boolean
-  syncPrice: number | null
-  commercialUseAllowed: boolean
-  commercialUseRevShare: number
   isRegistering: boolean
   error: string | null
   includeCoverArt: boolean
@@ -45,7 +37,6 @@ interface RegistrationState {
 
 export default function CreatePage() {
   const router = useRouter()
-  const { user, isLoading } = useRequireAuth()
 
   const [genState, setGenState] = useState<GenerationState>({
     description: '',
@@ -65,12 +56,6 @@ export default function CreatePage() {
 
   const [regState, setRegState] = useState<RegistrationState>({
     title: '',
-    aiTrainingAllowed: false,
-    aiTrainingPrice: null,
-    syncAllowed: false,
-    syncPrice: null,
-    commercialUseAllowed: false,
-    commercialUseRevShare: 0,
     isRegistering: false,
     error: null,
     includeCoverArt: false,
@@ -78,48 +63,31 @@ export default function CreatePage() {
 
   const [audioPlayerKey, setAudioPlayerKey] = useState(0)
 
-  // Proceed with registration using provided userId
-  const proceedWithRegistration = async (userId: string) => {
+  // Publish the generated moment. Identity comes from the auth session (cookie),
+  // so no user id is passed here — the /create route is gated by the proxy.
+  const publishMoment = async () => {
     if (!genState.generatedAudioUrl) {
-      setRegState((prev) => ({
-        ...prev,
-        error: 'No audio to register',
-      }))
+      setRegState((prev) => ({ ...prev, error: 'No audio to publish' }))
       return
     }
-
     if (!regState.title.trim()) {
-      setRegState((prev) => ({
-        ...prev,
-        error: 'Please name your moment',
-      }))
+      setRegState((prev) => ({ ...prev, error: 'Please name your moment' }))
       return
     }
 
-    setRegState((prev) => ({
-      ...prev,
-      isRegistering: true,
-      error: null,
-    }))
+    setRegState((prev) => ({ ...prev, isRegistering: true, error: null }))
 
     try {
       const response = await fetch('/api/tracks', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': userId,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           audio_url: genState.generatedAudioUrl,
           metadata: {
             title: regState.title,
             ai_origin: 'ai_generated',
-            ai_training_allowed: regState.aiTrainingAllowed,
-            ai_training_price_usd: regState.aiTrainingPrice,
-            sync_allowed: regState.syncAllowed,
-            sync_price_usd: regState.syncPrice,
-            commercial_use_allowed: regState.commercialUseAllowed,
-            commercial_use_revenue_share_pct: regState.commercialUseRevShare,
+            duration_seconds: genState.duration,
+            genre: genState.style,
             cover_image_url: regState.includeCoverArt ? genState.imageUrl : null,
             moment_description: genState.momentDescription,
           },
@@ -127,104 +95,22 @@ export default function CreatePage() {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Registration failed')
+        const errorData = await response.json().catch(() => ({}))
+        if (response.status === 401) {
+          router.push('/login?redirect=/create')
+          return
+        }
+        throw new Error(errorData.error || 'Publishing failed')
       }
 
       const result = await response.json()
       router.push(`/track/${result.trackId}`)
     } catch (error) {
-      console.error('Registration error:', error)
+      console.error('Publish error:', error)
       setRegState((prev) => ({
         ...prev,
         isRegistering: false,
         error: error instanceof Error ? error.message : 'An error occurred',
-      }))
-    }
-  }
-
-  // Handle World ID verification for seamless registration flow
-  const handleVerifyForRegistration = async () => {
-    try {
-      if (!MiniKit.isInstalled()) {
-        setRegState((prev) => ({
-          ...prev,
-          error: 'World App not detected. Please open this app in World App.',
-        }))
-        return
-      }
-
-      // Fetch a nonce from the backend
-      const nonceResponse = await fetch('/api/nonce')
-      if (!nonceResponse.ok) {
-        setRegState((prev) => ({
-          ...prev,
-          error: 'Failed to generate verification nonce. Please try again.',
-        }))
-        return
-      }
-
-      const { nonce } = await nonceResponse.json()
-
-      // Call MiniKit walletAuth with nonce for SIWE flow
-      const walletResult = await MiniKit.walletAuth({
-        nonce,
-        statement: 'Sign in to verify your humanity and register music on the protocol.',
-      })
-
-      if (!walletResult.data || !('address' in walletResult.data)) {
-        setRegState((prev) => ({
-          ...prev,
-          error: 'Wallet authentication failed. Please try again.',
-        }))
-        return
-      }
-
-      const { address, message, signature } = walletResult.data
-      const orbVerified = MiniKit.user?.verificationStatus?.isOrbVerified || false
-
-      // Send wallet auth proof to backend for verification
-      const verifyResponse = await fetch('/api/world/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          address,
-          message,
-          signature,
-          orb_verified: orbVerified,
-          username: MiniKit.user?.username || 'creator',
-        }),
-      })
-
-      if (!verifyResponse.ok) {
-        const errorData = await verifyResponse.json()
-        setRegState((prev) => ({
-          ...prev,
-          error: errorData.error || 'Server verification failed.',
-        }))
-        return
-      }
-
-      const verifyData = await verifyResponse.json()
-
-      // Store user data in localStorage and cookies
-      localStorage.setItem('user_id', verifyData.userId)
-      const userData = {
-        world_wallet_address: verifyData.walletAddress,
-        world_username: verifyData.username,
-        orb_verified: verifyData.orbVerified,
-      }
-      localStorage.setItem('user_data', JSON.stringify(userData))
-      document.cookie = `user_id=${encodeURIComponent(verifyData.userId)}; path=/; max-age=${7 * 24 * 60 * 60}`
-      document.cookie = `user_data=${encodeURIComponent(JSON.stringify(userData))}; path=/; max-age=${7 * 24 * 60 * 60}`
-
-      // Proceed immediately with registration using the verified data
-      await proceedWithRegistration(verifyData.userId)
-    } catch (error) {
-      console.error('Verification error:', error)
-      setRegState((prev) => ({
-        ...prev,
-        error: error instanceof Error ? error.message : 'An error occurred during verification.',
       }))
     }
   }
@@ -240,7 +126,6 @@ export default function CreatePage() {
           let width = img.width
           let height = img.height
 
-          // Resize to max 1024px
           const maxSize = 1024
           if (width > height) {
             if (width > maxSize) {
@@ -273,42 +158,25 @@ export default function CreatePage() {
     })
   }
 
-  // Handle image selection
+  // Handle image selection → AI description
   const handleImageSelect = async (file: File) => {
     if (!file.type.startsWith('image/')) {
-      setGenState((prev) => ({
-        ...prev,
-        error: 'Please select an image file',
-      }))
+      setGenState((prev) => ({ ...prev, error: 'Please select an image file' }))
       return
     }
 
-    setGenState((prev) => ({
-      ...prev,
-      imageFile: file,
-      isDescribing: true,
-      error: null,
-    }))
+    setGenState((prev) => ({ ...prev, imageFile: file, isDescribing: true, error: null }))
 
     try {
-      // Resize image
       const resizedBase64 = await resizeImage(file)
-      const base64Data = resizedBase64.split(',')[1] // Remove data:image/jpeg;base64, prefix
+      const base64Data = resizedBase64.split(',')[1]
 
-      // Show preview
-      setGenState((prev) => ({
-        ...prev,
-        imagePreviewUrl: resizedBase64,
-      }))
+      setGenState((prev) => ({ ...prev, imagePreviewUrl: resizedBase64 }))
 
-      // Call describe-image API
       const response = await fetch('/api/describe-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          image: base64Data,
-          mimeType: file.type || 'image/jpeg',
-        }),
+        body: JSON.stringify({ image: base64Data, mimeType: file.type || 'image/jpeg' }),
       })
 
       if (!response.ok) {
@@ -328,11 +196,7 @@ export default function CreatePage() {
         isDescribing: false,
       }))
 
-      // Auto-enable cover art toggle if image was uploaded
-      setRegState((prev) => ({
-        ...prev,
-        includeCoverArt: true,
-      }))
+      setRegState((prev) => ({ ...prev, includeCoverArt: true }))
     } catch (error) {
       console.error('Image analysis error:', error)
       setGenState((prev) => ({
@@ -343,39 +207,15 @@ export default function CreatePage() {
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#fdfff8]">
-        <div className="flex gap-2">
-          <div className="w-2 h-2 bg-[#1b1b1b] rounded-full animate-bounce"></div>
-          <div className="w-2 h-2 bg-[#1b1b1b] rounded-full animate-bounce delay-100"></div>
-          <div className="w-2 h-2 bg-[#1b1b1b] rounded-full animate-bounce delay-200"></div>
-        </div>
-      </div>
-    )
-  }
-
-  if (!user) {
-    return null
-  }
-
   const handleGenerateMusic = async () => {
     if (!genState.style.trim()) {
-      setGenState((prev) => ({
-        ...prev,
-        error: 'Please select or enter a music style',
-      }))
+      setGenState((prev) => ({ ...prev, error: 'Please select or enter a music style' }))
       return
     }
 
-    setGenState((prev) => ({
-      ...prev,
-      isGenerating: true,
-      error: null,
-    }))
+    setGenState((prev) => ({ ...prev, isGenerating: true, error: null }))
 
     try {
-      // Create prediction
       const createResponse = await fetch('/api/generate-music', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -393,26 +233,21 @@ export default function CreatePage() {
       const { predictionId } = await createResponse.json()
       setGenState((prev) => ({ ...prev, predictionId }))
 
-      // Poll for status
       let isComplete = false
       let audioUrl: string | null = null
       let pollCount = 0
       const maxPolls = 100 // ~300 seconds max wait
 
       while (!isComplete && pollCount < maxPolls) {
-        await new Promise((resolve) => setTimeout(resolve, 3000)) // Poll every 3s
+        await new Promise((resolve) => setTimeout(resolve, 3000))
         pollCount++
 
-        const statusResponse = await fetch(
-          `/api/generate-music/status?id=${predictionId}`
-        )
-
+        const statusResponse = await fetch(`/api/generate-music/status?id=${predictionId}`)
         if (!statusResponse.ok) {
           throw new Error('Failed to check generation status')
         }
 
         const statusData = await statusResponse.json()
-
         if (statusData.status === 'succeeded') {
           audioUrl = statusData.audioUrl
           isComplete = true
@@ -425,20 +260,9 @@ export default function CreatePage() {
         throw new Error('Music generation timed out')
       }
 
-      setGenState((prev) => ({
-        ...prev,
-        generatedAudioUrl: audioUrl,
-        isGenerating: false,
-      }))
-
-      // Reset audio player to allow re-play
+      setGenState((prev) => ({ ...prev, generatedAudioUrl: audioUrl, isGenerating: false }))
       setAudioPlayerKey((prev) => prev + 1)
-
-      // Auto-fill title with style
-      setRegState((prev) => ({
-        ...prev,
-        title: `Moment — ${prev.title || genState.style}`,
-      }))
+      setRegState((prev) => ({ ...prev, title: prev.title || `Moment — ${genState.style}` }))
     } catch (error) {
       console.error('Generation error:', error)
       setGenState((prev) => ({
@@ -447,26 +271,6 @@ export default function CreatePage() {
         error: error instanceof Error ? error.message : 'An error occurred',
       }))
     }
-  }
-
-  const handleRegisterMoment = async () => {
-    if (!user?.orb_verified) {
-      // Trigger verification modal - it will proceed with registration after verification
-      await handleVerifyForRegistration()
-      return
-    }
-
-    // Already verified, proceed with registration
-    const userId = user?.id
-    if (!userId) {
-      setRegState((prev) => ({
-        ...prev,
-        error: 'User not authenticated',
-      }))
-      return
-    }
-
-    await proceedWithRegistration(userId)
   }
 
   const handleGenerateAnother = () => {
@@ -485,18 +289,7 @@ export default function CreatePage() {
       imageUrl: null,
       suggestedStyle: null,
     })
-    setRegState({
-      title: '',
-      aiTrainingAllowed: false,
-      aiTrainingPrice: null,
-      syncAllowed: false,
-      syncPrice: null,
-      commercialUseAllowed: false,
-      commercialUseRevShare: 0,
-      isRegistering: false,
-      error: null,
-      includeCoverArt: false,
-    })
+    setRegState({ title: '', isRegistering: false, error: null, includeCoverArt: false })
   }
 
   return (
@@ -506,7 +299,8 @@ export default function CreatePage() {
         <div className="mb-12">
           <h1 className="text-5xl font-bold mb-4">Create a Moment</h1>
           <p className="text-xl text-[#1b1b1b80]">
-            Describe what you're experiencing. Choose your duration. AI will compose your Moment and register it on-chain as your IP.
+            Snap a photo or describe what you&apos;re feeling. Choose a style and length. AI composes
+            an original moment you can publish and stream.
           </p>
         </div>
 
@@ -515,9 +309,7 @@ export default function CreatePage() {
           <div className="space-y-6 bg-[#fdfff8] border border-[#1b1b1b] rounded-lg p-8">
             {/* Image Input Section */}
             <div>
-              <label className="block text-sm font-semibold mb-3">
-                Or snap a moment (optional)
-              </label>
+              <label className="block text-sm font-semibold mb-3">Or snap a moment (optional)</label>
               <div className="flex gap-3 mb-4">
                 <label className="flex-1">
                   <input
@@ -564,10 +356,9 @@ export default function CreatePage() {
                 </label>
               </div>
               <p className="text-xs text-[#1b1b1b80]">
-                Your photo is analyzed by AI to generate music. It is not stored.
+                Your photo is analyzed by AI to shape the music and can become the cover art.
               </p>
 
-              {/* Image Preview */}
               {genState.imagePreviewUrl && (
                 <div className="mt-4">
                   <img
@@ -578,7 +369,6 @@ export default function CreatePage() {
                 </div>
               )}
 
-              {/* Describing state */}
               {genState.isDescribing && (
                 <div className="mt-4 p-4 bg-[#fdfff8] border border-[#1b1b1b] rounded-lg">
                   <div className="flex gap-2 items-center">
@@ -595,9 +385,7 @@ export default function CreatePage() {
               </label>
               <textarea
                 value={genState.description}
-                onChange={(e) =>
-                  setGenState((prev) => ({ ...prev, description: e.target.value }))
-                }
+                onChange={(e) => setGenState((prev) => ({ ...prev, description: e.target.value }))}
                 placeholder="e.g., walking through rain at night, feeling contemplative and calm..."
                 className="w-full h-24 px-4 py-3 bg-[#fdfff8] border border-[#1b1b1b] rounded-lg text-[#1b1b1b] placeholder-[#484947] focus:outline-none focus:border-[#1b1b1b]"
                 disabled={genState.isGenerating}
@@ -615,22 +403,17 @@ export default function CreatePage() {
               <input
                 type="text"
                 value={genState.style}
-                onChange={(e) =>
-                  setGenState((prev) => ({ ...prev, style: e.target.value }))
-                }
+                onChange={(e) => setGenState((prev) => ({ ...prev, style: e.target.value }))}
                 placeholder="e.g., hyperpop, dark ambient, jazz fusion, lo-fi..."
                 className="w-full px-4 py-3 bg-[#fdfff8] border border-[#1b1b1b] rounded-lg text-[#1b1b1b] placeholder-[#484947] focus:outline-none focus:border-[#1b1b1b] mb-4"
                 disabled={genState.isGenerating}
               />
 
-              {/* Quick Style Picks */}
               <div className="flex flex-wrap gap-2 mb-4">
                 {QUICK_STYLES.map((qStyle) => (
                   <button
                     key={qStyle}
-                    onClick={() =>
-                      setGenState((prev) => ({ ...prev, style: qStyle }))
-                    }
+                    onClick={() => setGenState((prev) => ({ ...prev, style: qStyle }))}
                     disabled={genState.isGenerating}
                     className={`px-3 py-2 rounded-full text-xs font-semibold transition ${
                       genState.style.toLowerCase() === qStyle.toLowerCase()
@@ -651,9 +434,7 @@ export default function CreatePage() {
                 {DURATION_OPTIONS.map((opt) => (
                   <button
                     key={opt.seconds}
-                    onClick={() =>
-                      setGenState((prev) => ({ ...prev, duration: opt.seconds }))
-                    }
+                    onClick={() => setGenState((prev) => ({ ...prev, duration: opt.seconds }))}
                     disabled={genState.isGenerating}
                     className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
                       genState.duration === opt.seconds
@@ -689,25 +470,16 @@ export default function CreatePage() {
             </button>
           </div>
         ) : (
-          /* Stage 2: Preview & Registration */
+          /* Stage 2: Preview & Publish */
           <div className="space-y-6">
-            {/* Audio Player */}
             <div className="bg-[#fdfff8] border border-[#1b1b1b] rounded-lg p-8 space-y-4">
               <h2 className="text-2xl font-bold">Your Moment is Ready</h2>
-              <audio
-                key={audioPlayerKey}
-                controls
-                src={genState.generatedAudioUrl}
-                className="w-full"
-              />
-              <p className="text-sm text-[#1b1b1b80]">
-                AI-generated audio Moment from your description
-              </p>
+              <audio key={audioPlayerKey} controls src={genState.generatedAudioUrl} className="w-full" />
+              <p className="text-sm text-[#1b1b1b80]">AI-generated audio moment from your description</p>
             </div>
 
-            {/* Registration Form */}
             <div className="bg-[#fdfff8] border border-[#1b1b1b] rounded-lg p-8 space-y-6">
-              <h2 className="text-2xl font-bold">Register This Moment</h2>
+              <h2 className="text-2xl font-bold">Publish This Moment</h2>
 
               {/* Cover Art Section */}
               {genState.imageUrl && genState.imagePreviewUrl && (
@@ -722,10 +494,7 @@ export default function CreatePage() {
                       type="checkbox"
                       checked={regState.includeCoverArt}
                       onChange={(e) =>
-                        setRegState((prev) => ({
-                          ...prev,
-                          includeCoverArt: e.target.checked,
-                        }))
+                        setRegState((prev) => ({ ...prev, includeCoverArt: e.target.checked }))
                       }
                       disabled={regState.isRegistering}
                       className="w-4 h-4 rounded"
@@ -741,139 +510,11 @@ export default function CreatePage() {
                 <input
                   type="text"
                   value={regState.title}
-                  onChange={(e) =>
-                    setRegState((prev) => ({ ...prev, title: e.target.value }))
-                  }
+                  onChange={(e) => setRegState((prev) => ({ ...prev, title: e.target.value }))}
                   placeholder="e.g., Rainy Night"
                   disabled={regState.isRegistering}
                   className="w-full px-4 py-3 bg-[#fdfff8] border border-[#1b1b1b] rounded-lg text-[#1b1b1b] placeholder-[#484947] focus:outline-none focus:border-[#1b1b1b] disabled:opacity-50"
                 />
-              </div>
-
-              {/* AI Origin Disclosure */}
-              <div className="bg-[#fdfff8] border border-[#1b1b1b] rounded-lg p-4">
-                <p className="text-sm text-[#1b1b1b]">
-                  <span className="font-semibold">AI-Generated:</span> This moment will be registered on-chain as AI-generated, authored by you as a verified human. The unique moment description and vibe choice are your creative contribution.
-                </p>
-              </div>
-
-              {/* License Terms */}
-              <div className="space-y-4">
-                <p className="text-sm font-semibold">License Terms (optional):</p>
-
-                <label className="flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={regState.aiTrainingAllowed}
-                    onChange={(e) =>
-                      setRegState((prev) => ({
-                        ...prev,
-                        aiTrainingAllowed: e.target.checked,
-                      }))
-                    }
-                    disabled={regState.isRegistering}
-                    className="mt-1"
-                  />
-                  <div>
-                    <p className="text-sm font-semibold">Allow AI Training</p>
-                    <p className="text-xs text-[#1b1b1b80]">
-                      AI companies can use this for model training
-                    </p>
-                    {regState.aiTrainingAllowed && (
-                      <input
-                        type="number"
-                        value={regState.aiTrainingPrice ?? ''}
-                        onChange={(e) =>
-                          setRegState((prev) => ({
-                            ...prev,
-                            aiTrainingPrice: e.target.value
-                              ? parseInt(e.target.value)
-                              : null,
-                          }))
-                        }
-                        placeholder="Price in USD"
-                        min="0"
-                        disabled={regState.isRegistering}
-                        className="mt-2 w-full px-3 py-2 bg-[#fdfff8] border border-[#1b1b1b] rounded text-sm text-[#1b1b1b]"
-                      />
-                    )}
-                  </div>
-                </label>
-
-                <label className="flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={regState.syncAllowed}
-                    onChange={(e) =>
-                      setRegState((prev) => ({
-                        ...prev,
-                        syncAllowed: e.target.checked,
-                      }))
-                    }
-                    disabled={regState.isRegistering}
-                    className="mt-1"
-                  />
-                  <div>
-                    <p className="text-sm font-semibold">Allow Sync Licensing</p>
-                    <p className="text-xs text-[#1b1b1b80]">
-                      Use in videos, films, ads, games
-                    </p>
-                    {regState.syncAllowed && (
-                      <input
-                        type="number"
-                        value={regState.syncPrice ?? ''}
-                        onChange={(e) =>
-                          setRegState((prev) => ({
-                            ...prev,
-                            syncPrice: e.target.value ? parseInt(e.target.value) : null,
-                          }))
-                        }
-                        placeholder="Price in USD"
-                        min="0"
-                        disabled={regState.isRegistering}
-                        className="mt-2 w-full px-3 py-2 bg-[#fdfff8] border border-[#1b1b1b] rounded text-sm text-[#1b1b1b]"
-                      />
-                    )}
-                  </div>
-                </label>
-
-                <label className="flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={regState.commercialUseAllowed}
-                    onChange={(e) =>
-                      setRegState((prev) => ({
-                        ...prev,
-                        commercialUseAllowed: e.target.checked,
-                      }))
-                    }
-                    disabled={regState.isRegistering}
-                    className="mt-1"
-                  />
-                  <div>
-                    <p className="text-sm font-semibold">Allow Commercial Use</p>
-                    <p className="text-xs text-[#1b1b1b80]">
-                      Use for commercial projects
-                    </p>
-                    {regState.commercialUseAllowed && (
-                      <input
-                        type="number"
-                        value={regState.commercialUseRevShare}
-                        onChange={(e) =>
-                          setRegState((prev) => ({
-                            ...prev,
-                            commercialUseRevShare: parseInt(e.target.value) || 0,
-                          }))
-                        }
-                        placeholder="Revenue share %"
-                        min="0"
-                        max="100"
-                        disabled={regState.isRegistering}
-                        className="mt-2 w-full px-3 py-2 bg-[#fdfff8] border border-[#1b1b1b] rounded text-sm text-[#1b1b1b]"
-                      />
-                    )}
-                  </div>
-                </label>
               </div>
 
               {regState.error && (
@@ -885,11 +526,11 @@ export default function CreatePage() {
               {/* Action Buttons */}
               <div className="flex gap-4">
                 <button
-                  onClick={handleRegisterMoment}
+                  onClick={publishMoment}
                   disabled={!regState.title.trim() || regState.isRegistering}
                   className="flex-1 py-4 bg-[#1b1b1b] text-[#fdfff8] font-semibold rounded-lg hover:opacity-80 disabled:opacity-50 transition-colors"
                 >
-                  {regState.isRegistering ? 'Registering...' : 'Register this Moment →'}
+                  {regState.isRegistering ? 'Publishing...' : 'Publish this Moment →'}
                 </button>
                 <button
                   onClick={handleGenerateAnother}
