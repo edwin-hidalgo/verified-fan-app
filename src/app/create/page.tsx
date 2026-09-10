@@ -173,10 +173,12 @@ export default function CreatePage() {
 
       setGenState((prev) => ({ ...prev, imagePreviewUrl: resizedBase64 }))
 
+      // resizeImage() always re-encodes to JPEG, so the declared mimeType must be JPEG too
+      // (sending the original file.type, e.g. image/png, makes Claude reject the base64 mismatch).
       const response = await fetch('/api/describe-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64Data, mimeType: file.type || 'image/jpeg' }),
+        body: JSON.stringify({ image: base64Data, mimeType: 'image/jpeg' }),
       })
 
       if (!response.ok) {
