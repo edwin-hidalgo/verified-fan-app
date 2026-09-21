@@ -1,0 +1,232 @@
+# HANDOFF — ekos
+
+_Last updated: 2026-09-21 · Repo: `~/Documents/verified-fan-app` · Branch: `refocus-create-stream`_
+
+**This file is the source of truth for ekos.** It supersedes the README, the deployed
+site, and every loose planning doc in `~/Documents/Onus/` and `~/Downloads/` on
+matters of repo state. Where it contradicts them, believe this file and `git log`.
+
+It exists because ekos's history was scattered across three folders and an agent
+memory directory, several of the most authoritative-looking documents were stale,
+and re-orienting a new session took three parallel agents on 2026-09-21. A handoff
+doc was offered on 2026-09-08 and never written. This is that doc.
+
+## 0. The one thing to understand first
+
+The repo contains **two products**. The old one — a World ID + Story Protocol
+"verified-human music rights registry", built for the World Build 3 hackathon in
+April 2026 — was deliberately sunset in July 2026 and replaced by a **create +
+stream consumer app**: photo or feeling in, AI-composed music out, published to a
+public feed, with Supabase email auth. World/Story code is quarantined in
+`deprecated/`.
+
+Since September 2026 ekos has a **third role**: it is the host codebase for a
+bounded research spike on *consented adapters* (see §3). ekos is not currently a
+product being shipped. It is a working consumer shell that a time-boxed experiment
+is being built inside.
+
+## 1. Where things actually are
+
+| | |
+|---|---|
+| Working branch | `refocus-create-stream` — **local only, never pushed** |
+| HEAD | `d4b85d8` (2026-09-10) "Fix JPEG MIME type for resized photo uploads" |
+| `main` | `672b205` — the **old hackathon app**. 3 commits behind. Do not merge to it yet |
+| Tag `hackathon-final` | `672b205`, the submitted hackathon build. **Local only** |
+| Branch `archive/hackathon-public` | tag + one guard file; the source of the public archive (§8) |
+| Production | `verified-fan-app.vercel.app` — still serves the **dead hackathon build** |
+| Hackathon archive | `ekos-world-build-3-hack.vercel.app` — public, read-only, deliberate (§8) |
+| Supabase | project `gwafkmkmoaqgsdnvuqzn`, free tier, 30 tracks / 35 plays |
+| Spike branch | `spike/consented-adapters` — **does not exist yet** |
+
+**Nothing is backed up off this machine.** `origin` has only `main`. Three months
+of work — the entire create+stream refocus — exists solely on this laptop. This is
+the highest-risk item in this file.
+
+## 2. What the app does today
+
+**Auth** — Supabase email + password, "Confirm email" disabled. `src/proxy.ts`
+(Next 16 renamed middleware → proxy) refreshes the session and gates `/create` and
+`/my-tracks`, redirecting signed-out users to `/login`. One real account:
+`pescatios` / edwinhidalgo45@gmail.com / uid `3441a4a9-177d-4e25-8803-7580660219f6`.
+
+**Create** — photo resized client-side to ≤1024px JPEG → `POST /api/describe-image`
+→ Claude Haiku (`claude-haiku-4-5-20251001`) returns `{music, moment, style}` and the
+image is uploaded to `audio-files/covers/` → user edits description, picks a style and
+duration → `POST /api/generate-music` → Replicate `stability-ai/stable-audio-2.5`,
+polled every 3s for up to ~5 min → preview → `POST /api/tracks` persists the audio to
+Supabase Storage and inserts the row.
+
+**Stream** — `/catalog` public feed with a persistent `AudioPlayer`, `/track/[id]`
+detail with share, `/my-tracks` creator dashboard. Play counting is anonymous and
+un-deduped, demo-grade by decision.
+
+**Wired:** Supabase (Postgres + Storage + Auth), Replicate, Anthropic.
+**Not wired:** Story Protocol, IPFS/Pinata, World ID, Spotify — deprecated or vestigial.
+
+## 3. The spike: consented adapters
+
+**The idea.** Adapt a documented open base model using **one artist's explicitly
+consented stems**, enforce permission **at generation time** by looking it up against
+a terms record rather than inferring it, log a receipt, and have a working artist
+judge the result. The terminating demo:
+
+> **Choose artist → see terms → permission check → actual adapter generation → receipt.**
+
+**The bar that matters** is not the mechanism — it is a working artist hearing the
+output and saying *"that's plausibly a product."* Building something demo-able is
+explicitly a precondition for talking to artists, counsel or investors again.
+
+**The six questions it must answer with numbers:**
+
+| Question | What it must produce |
+|---|---|
+| Data floor | Train at three sizes — one song / a few / full catalog. Where does artist-likeness become recognizable? Is one-song training a usable *song-likeness* tier? |
+| Quality | Does the best output clear the "plausibly a product" bar? Fixed prompts and seeds, outputs retained, no cherry-picking |
+| Unit economics | Dollars and wall-clock **per artist adapter**, one-time setup separated from recurring |
+| Routing | Prompt → permission check → adapter selection, for **name** invocations and **style-shaped** prompts, authorized and denied paths, with a receipt |
+| Memorization | Does the adapter regurgitate training audio? Build the eval; set pass/review/fail policy *before* judging |
+| Revocation | Delete the adapter; show the artist cannot be invoked in future generation. State what happens to already-generated outputs |
+
+**Hard constraints (non-negotiable):** ~14 calendar days · **$100 total cash ceiling**
+(setup $10 / GPU $60 / eval $15 / reserve $15) · paid API smoke tests count against it ·
+stems are confidential and never committed or uploaded without confirming consent covers
+it · **never fine-tune the shared base on pooled consented audio** (revocation depends on
+adapter-level granularity) · no voice cloning (this is a *style* engine) · no live payment
+rails · no ONUS code integration · **model-plan approval before any model code**.
+
+**Proposed stack, unapproved:** Stable Audio 3 Medium, frozen base, one LoRA/DoRA-class
+adapter per artist, MLX on the M4 Mac (16GB). Rank 16 is a starting guess. Fallback is
+private GPU, preferably Replicate. Inference benchmarks do **not** prove training fits in
+16GB — that is a day-1 feasibility question. Training code goes in a Python `training/`
+sidecar inside this repo; **extend `.gitignore` before its first commit** (venv, caches,
+`*.safetensors *.ckpt *.pt *.bin`, `stems/ data/ outputs/ *.wav *.mp3 *.flac`, `.env`).
+
+**Status: nothing has been built. No training has run. No artist has been identified.**
+
+**The demand finding that shapes it** — from the onus.fm invocation census of 16,706 real
+Suno/Udio prompts: only **3.52%** name a real artist, and those skew to megastars who will
+never sign with an indie platform. The other ~96.5% ask for styles, genres and moods. So
+test **style routing as well as name routing**, and pick the first artist for *willingness
+and stem availability*, not demand. A correction on record: that sample does **not** prove
+96.5% of all demand is style-shaped — `EKOS-SCOPE-MAP.md` states it too strongly.
+
+**Legal boundaries.** California **AB 2602** voids digital-replica grants lacking a
+"reasonably specific description" of intended uses — so store a human-readable
+`scope_specificity_text` per grant and make each pathway a separate toggle, never a blanket
+grant. Tennessee's **ELVIS Act** covers simulated voice. UMG's Music IP Holdings holds 24+
+issued generative-AI patents whose described coverage includes consent-checked generation
+and royalty administration; freedom-to-operate review happens *after* the spike, so:
+**receipt logging yes, live payment rails no.**
+
+**Honesty invariants** (these are the brand; a generic ML session will trample them):
+"kinship, not paternity" — never claim causation from similarity · presence in a dataset ≠
+proof a model trained on it · **"documented" and "license-permitted" ≠ "consented"** — reserve
+*consented* for explicit, AI-specific, term-attached grants, including whether the grant covers
+third-party training infrastructure · modeled figures carry a visible `~` and the word
+"modeled" · the villain is extraction without consent, never the technology or its users.
+
+## 4. OPEN ITEMS
+
+**Every ask gets a row, including the ones we are not doing, with the reason.**
+
+| # | Item | Raised | Status |
+|---|---|---|---|
+| 1 | Commit the JPEG MIME fix | Sep 8 | **done** — `d4b85d8` |
+| 2 | **Human-verify create-with-photo E2E (upload a PNG)** | Sep 8 | **OPEN — blocks #3, #4.** Typecheck passing is not an E2E result. Cover-art attachment has never been verified; track #30 has `cover_image_url: null` because of the bug #1 fixed |
+| 3 | **Push `refocus-create-stream` + tag `hackathon-final`** | Sep 8 | **OPEN, blocked by #2.** Backup only — not a merge to main, not a production replace |
+| 4 | Create `spike/consented-adapters` off the refocus branch | Sep 8 | OPEN, blocked by #3 |
+| 5 | Public shareable link for the hackathon build | Sep 10 | **DONE 2026-09-21** — `ekos-world-build-3-hack.vercel.app`, read-only (§8) |
+| 6 | Identify a consenting artist + real consented stems | Sep 8 | **OPEN — the long pole.** License-permitted audio proves plumbing but cannot satisfy the consented-artist demonstration. Find this before spending the 14-day window waiting for files |
+| 7 | Approve the model stack before any model code | Sep 10 | OPEN — gates the whole spike |
+| 8 | Write the hackathon's AI integration into `CAREER-AND-PORTFOLIO.md` | Sep 10 | **OPEN** — the other half of the turn Codex was cut off mid-way through |
+| 9 | 29 legacy hackathon tracks not re-linked to pescatios | Jul / Sep 8 | **OPEN, and needs a decision.** They belong to old World-ID users. Planned one-time `UPDATE tracks SET user_id='3441a4a9-…'`, never executed; whether to rewrite `artist_name` too was never settled. `EKOS-SPIKE-PLAN.md` silently drops the item — **ask Edwin whether it is cancelled or forgotten** |
+| 10 | `/catalog` license filter pills are dead UI | Jul | OPEN — off-message. Nothing sets `ai_training_allowed` / `sync_allowed` / `commercial_use_allowed`, so all three always render `(0)` |
+| 11 | README describes the dead hackathon product | Apr | OPEN |
+| 12 | Cover upload coupled inside `/api/describe-image` | Jul | OPEN — a Claude failure loses the cover |
+| 13 | No edit-profile UI | Jul | OPEN — display name settable only at signup |
+| 14 | No password-reset screen | Sep 10 | OPEN |
+| 15 | `.env.example` is stale | — | OPEN — omits `REPLICATE_API_TOKEN` (which the app cannot run without), still lists dead World/Spotify vars |
+| 16 | `metadataBase` is `http://localhost:3000` in `src/app/layout.tsx` | — | OPEN — breaks absolute OG/social URLs in production |
+| 17 | Unique @handles + public creator profiles | Jul | **deferred by decision** — bundled as one future feature, additive, no lock-in |
+| 18 | License-terms collection UI | Jul | **dropped on purpose.** The spike's minimal *terms record* is a different, new thing — do not let this memory talk you out of building it |
+| 19 | Play-count dedup | Jul | **dropped on purpose** — open streaming, demo-grade metric |
+| 20 | Impersonation / anti-scam, watermark detection, full accounts audit | Sep 8 | **parked warm, post-spike** — pointers in `EKOS-SCOPE-MAP.md` §D |
+| 21 | Story PIL integration | Sep 8 | deferred — schema informed by it, infra later at most |
+
+## 5. Stale documents — do not trust these
+
+| Doc | What it gets wrong |
+|---|---|
+| `~/Downloads/HANDOFF-EKOS.md` (Jul 29) | **The most dangerous one.** Orders *"freeze feature work"* and rules that the rights/provenance layer **never returns to ekos** — the September spike does exactly that, inside this repo. Superseded |
+| `README.md` (this repo) | The April hackathon pitch. Lists routes and libs that now live in `deprecated/` |
+| `~/Documents/Onus/MASTER-CONTEXT-V3.md` | Contradicts itself in-file: §2 lists ekos as frozen, the header annotation says reactivated. The annotation wins |
+| `~/Documents/Onus/EKOS-HANDOFF-SEPT.md` (Sep 8) | Still excellent on codebase internals. Stale on two facts: says the JPEG fix is uncommitted and HEAD is `6210d3e` |
+| `~/Documents/Onus/EKOS-SCOPE-MAP.md` | States "~96.5% of measured demand is style-shaped" as fact; `EKOS-SPIKE-PLAN.md` retracts the overstatement |
+| memory `project_context.md` | Describes the dead April World Mini App |
+| The deployed `verified-fan-app.vercel.app` | The dead hackathon product, not this codebase |
+
+**Current and trustworthy:** `~/Documents/Onus/EKOS-SPIKE-PLAN.md` (2026-09-10, the
+operative plan), `STUDIO-SPIKE-BRIEF.md` (the spike contract), `EKOS-SCOPE-MAP.md` (the
+licensing research), `ONUS-CODEX-HANDOFF.md` (full reasoning).
+
+## 6. Traps
+
+- **Next.js 16.** `src/proxy.ts`, not `middleware.ts`. `cookies()` is async. `AGENTS.md`
+  mandates reading `node_modules/next/dist/docs/` before writing code — tutorials mislead.
+- **Two Supabase server clients** in `src/lib/supabase/server.ts`: service-role (bypasses
+  RLS) and anon cookie-bound. Mixing them is a security bug. **All** server writes use
+  service-role, so the migration-001 RLS policies are effectively unused and were never
+  updated for email auth — adding a client-side Supabase query is how that becomes a hole.
+- **Replicate output URLs expire.** Audio is persisted only at publish. Spike experiments
+  must persist their own outputs deliberately or the comparison runs vanish.
+- **Supabase free tier auto-pauses after ~7 days idle.** If everything 500s and the DB host
+  stops resolving, it is a pause, not a bug — check the dashboard first. An UptimeRobot
+  monitor pings `/api/stats` (a real DB query) to prevent it, and appears to be working:
+  the project was awake on 2026-09-21 after 11 idle days. It already paused once, in June.
+- **The archive shares this same Supabase project**, so a pause takes the public portfolio
+  link down too.
+- **Owner context.** Edwin is a PM, not an engineer. He runs dashboard steps when guided,
+  expects proactive issue-catching, and wants big scope changes planned and confirmed, not
+  sprung. He also asks for genuine assessments over agreeable ones.
+
+## 7. The hackathon archive
+
+The April 2026 build is published read-only at **https://ekos-world-build-3-hack.vercel.app**
+(Vercel project `ekos-world-build-3-hack`, no SSO, separate from `verified-fan-app`) so it
+can be linked from Edwin's website.
+
+Deployed source is branch **`archive/hackathon-public`** = tag `hackathon-final` plus a
+single `src/proxy.ts` that returns 403 to every non-GET on `/api/*`. **That guard is not
+optional:** the hackathon build authenticated only in localStorage and its API routes
+enforced nothing, so without it a public link lets anyone write rows into the live Supabase
+project or spend real money on Replicate and Anthropic. The deployment also sets only the
+three Supabase vars and omits `REPLICATE_API_TOKEN`, `ANTHROPIC_API_KEY`, `PINATA_JWT` and
+`STORY_*` — two independent locks on the same door.
+
+Verified at publish: every read path 200, all six write/spend paths 403, catalog renders 23
+tracks with working audio, no JWT embedded in delivered HTML, and `/api/stats` unchanged at
+30 tracks / 35 plays before and after testing.
+
+To redeploy: `git worktree add --detach <dir> archive/hackathon-public` →
+`vercel link --project ekos-world-build-3-hack --yes` → `vercel deploy --prod --yes`.
+
+**A correction to the older docs:** they record Story registration as never having worked
+end-to-end. The data disagrees — **21 of 23** catalog tracks carry a distinct `story_ip_id`,
+tx hash and IPFS CID, and the metadata resolves (verified via `gateway.pinata.cloud`, which
+works where `ipfs.io` and `dweb.link` now 429). What was unfinished was the `ipMetadataHash`
+fix in `deprecated/lib/story/register.ts`, not registration itself. Do not undersell it.
+
+## 8. Next work, in order
+
+1. **Edwin verifies create-with-photo E2E** — sign in, upload a PNG, generate ~15s, publish,
+   confirm the cover image appears. Costs a little Replicate credit. Blocks everything below.
+2. **Push the branch and tag.** Backup only.
+3. **Cut `spike/consented-adapters`**, extend `.gitignore` first.
+4. **Approve the model stack**, then day-1 feasibility: does Stable Audio 3 Medium training
+   actually fit in 16GB, and can the full experiment fit the remaining cap at measured
+   throughput? If neither local nor private GPU fits, stop and report the feasibility failure.
+5. **Find the artist.** Parallel to all of the above — it is the longest lead time.
+
+A negative result is an acceptable terminating outcome. A spike that does not terminate has
+become the product by accident.
