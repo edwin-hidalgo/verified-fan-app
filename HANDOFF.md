@@ -86,7 +86,7 @@ explicitly a precondition for talking to artists, counsel or investors again.
 | Unit economics | Dollars and wall-clock **per artist adapter**, one-time setup separated from recurring |
 | Routing | Prompt → permission check → adapter selection, for **name** invocations and **style-shaped** prompts, authorized and denied paths, with a receipt |
 | Memorization | Does the adapter regurgitate training audio? Build the eval; set pass/review/fail policy *before* judging |
-| Revocation | Delete the adapter; show the artist cannot be invoked in future generation. State what happens to already-generated outputs |
+| Revocation | Delete the adapter; show the artist-adapter **pathway** is stopped, including served, cached and queued use. State what happens to already-generated outputs. **Do not claim unknown influence in the base model has been erased** — the earlier "fully gone from generation" wording was corrected to this |
 
 **Hard constraints (non-negotiable):** ~14 calendar days · **$100 total cash ceiling**
 (setup $10 / GPU $60 / eval $15 / reserve $15) · paid API smoke tests count against it ·
@@ -103,6 +103,24 @@ sidecar inside this repo; **extend `.gitignore` before its first commit** (venv,
 `*.safetensors *.ckpt *.pt *.bin`, `stems/ data/ outputs/ *.wav *.mp3 *.flac`, `.env`).
 
 **Status: nothing has been built. No training has run. No artist has been identified.**
+
+**What a receipt must preserve** (six fields): the original request or selection · any
+rewriting applied · the resolved artist/song/model · the grant plus terms version · the
+adapter or reference assets actually used · the generation outcome.
+
+**Claims discipline, carried from the research corrections.** Actual adapter usage is
+recorded by construction and a contractual pool can be assigned entirely to that artist —
+but **neither means 100% of the musical output originated with the artist.** Prompt
+name-matching alone is weak evidence (it misreads negation, common names, quotations);
+an explicit selection plus authorized execution is far stronger. Style routing is **the
+platform's disclosed routing choice, not evidence the user secretly intended that artist**.
+A score is not a probability until it is calibrated, and missing evidence is not zero
+influence. A newer summary never rehabilitates a claim earlier research retracted.
+
+**What success would NOT establish:** full-chain personal opt-in, per-song causal
+percentages, broad customer demand, comprehensive rights clearance, or a scalable
+business. Song-level causal attribution is separate research with its own budget and
+acceptance criteria and **must not silently enter the two-week scope.**
 
 **The demand finding that shapes it** — from the onus.fm invocation census of 16,706 real
 Suno/Udio prompts: only **3.52%** name a real artist, and those skew to megastars who will
