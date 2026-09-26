@@ -8,7 +8,7 @@
  * The receipts list under each grant is the other half: what was actually done with it.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { showToast } from '@/lib/utils/toast'
 
 interface Grant {
@@ -61,19 +61,30 @@ export default function GrantsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    const [g, r] = await Promise.all([
-      fetch('/api/grants').then((res) => (res.ok ? res.json() : { grants: [] })),
-      fetch('/api/receipts').then((res) => (res.ok ? res.json() : { receipts: [] })),
-    ])
-    setGrants(g.grants || [])
-    setReceipts(r.receipts || [])
-    setIsLoading(false)
-  }, [])
+  // Shape matches the other client pages: the fetch lives inside the effect, so nothing sets
+  // state during the render pass.
+  const [reloadToken, setReloadToken] = useState(0)
 
   useEffect(() => {
+    let cancelled = false
+
+    const load = async () => {
+      const [g, r] = await Promise.all([
+        fetch('/api/grants').then((res) => (res.ok ? res.json() : { grants: [] })),
+        fetch('/api/receipts').then((res) => (res.ok ? res.json() : { receipts: [] })),
+      ])
+      if (cancelled) return
+      setGrants(g.grants || [])
+      setReceipts(r.receipts || [])
+      setIsLoading(false)
+    }
+
     load()
-  }, [load])
+
+    return () => {
+      cancelled = true
+    }
+  }, [reloadToken])
 
   const revoke = async (grant: Grant) => {
     const reason = window.prompt(
@@ -95,7 +106,7 @@ export default function GrantsPage() {
       return
     }
     showToast('Revoked. Future generations under these terms will be refused.', 'success')
-    load()
+    setReloadToken((n) => n + 1)
   }
 
   if (isLoading) {
