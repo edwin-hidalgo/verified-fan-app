@@ -47,6 +47,11 @@ interface GenerationState {
   imageUrl: string | null
   suggestedStyle: string | null
   /** Whose terms this generation runs under. Required — nothing generates ungated. */
+  /** Which engine makes the audio: the hosted model, or the in-browser palette. */
+  engine: 'replicate_stable_audio' | 'palette'
+  /** Palette engine only: the local file, which never leaves the browser. */
+  audioFile: File | null
+  paletteVoices: string[] | null
   grantId: string | null
   /** The ledger row for this attempt, authorized or denied. */
   receiptId: string | null
@@ -77,6 +82,9 @@ export default function CreatePage() {
     momentDescription: null,
     imageUrl: null,
     suggestedStyle: null,
+    engine: 'replicate_stable_audio',
+    audioFile: null,
+    paletteVoices: null,
     grantId: null,
     receiptId: null,
     denialReason: null,
@@ -263,6 +271,111 @@ export default function CreatePage() {
     }
   }
 
+  // The palette path: authorize, render in this browser, then report the spec that did it.
+  // The file is never uploaded — only the ~800 bytes describing which instruments it pointed at.
+  const handleGeneratePalette = async () => {
+    if (!genState.grantId) {
+      setGenState((prev) => ({ ...prev, error: 'Choose whose terms this runs under' }))
+      return
+    }
+    if (!genState.audioFile) {
+      setGenState((prev) => ({ ...prev, error: 'Choose an audio file first' }))
+      return
+    }
+
+    setReceiptJson(null)
+    setGenState((prev) => ({
+      ...prev,
+      isGenerating: true,
+      error: null,
+      receiptId: null,
+      denialReason: null,
+      paletteVoices: null,
+    }))
+
+    let receiptId: string | null = null
+    try {
+      const authRes = await fetch('/api/generate-music', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: genState.description || 'palette render',
+          style: genState.style || 'from a recording',
+          duration: genState.duration,
+          grant_id: genState.grantId,
+          engine: 'palette',
+          use_tier: 'personal',
+        }),
+      })
+      const authBody = await authRes.json().catch(() => ({}))
+      if (!authRes.ok) {
+        if (authRes.status === 401) {
+          router.push('/login?redirect=/create')
+          return
+        }
+        setGenState((prev) => ({
+          ...prev,
+          isGenerating: false,
+          error: authBody.error || 'Could not start',
+          receiptId: authBody.receiptId || null,
+          denialReason: authBody.denialReason || null,
+        }))
+        return
+      }
+      receiptId = authBody.receiptId
+      setGenState((prev) => ({ ...prev, receiptId }))
+
+      // Loaded only now, so the ~112 KB engine is not in the initial bundle.
+      const { runPalette } = await import('@/lib/palette/run')
+      const result = await runPalette(genState.audioFile, genState.duration)
+
+      const done = await fetch(`/api/receipts/${receiptId}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          outcome: 'succeeded',
+          spec: result.spec,
+          output_sha256: result.outputSha256,
+          source_sha256: result.sourceSha256,
+        }),
+      })
+      if (!done.ok) {
+        const body = await done.json().catch(() => ({}))
+        throw new Error(body.error || 'Could not record the render')
+      }
+
+      setGenState((prev) => ({
+        ...prev,
+        isGenerating: false,
+        generatedAudioUrl: URL.createObjectURL(result.wav),
+        paletteVoices: result.voiceNames,
+      }))
+      setAudioPlayerKey((prev) => prev + 1)
+      setRegState((prev) => ({
+        ...prev,
+        title: prev.title || `Moment — ${genState.audioFile?.name?.replace(/\.[^.]+$/, '') || 'from a recording'}`,
+      }))
+    } catch (error) {
+      // Tell the server the attempt failed, so the receipt closes honestly rather than
+      // sitting open forever.
+      if (receiptId) {
+        fetch(`/api/receipts/${receiptId}/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            outcome: 'failed',
+            error: error instanceof Error ? error.message : 'Client render failed',
+          }),
+        }).catch(() => {})
+      }
+      setGenState((prev) => ({
+        ...prev,
+        isGenerating: false,
+        error: error instanceof Error ? error.message : 'Render failed',
+      }))
+    }
+  }
+
   const handleGenerateMusic = async () => {
     if (!genState.style.trim()) {
       setGenState((prev) => ({ ...prev, error: 'Please select or enter a music style' }))
@@ -374,6 +487,9 @@ export default function CreatePage() {
       momentDescription: null,
       imageUrl: null,
       suggestedStyle: null,
+      engine: genState.engine, // keep the chosen engine too
+      audioFile: null,
+      paletteVoices: null,
       grantId: genState.grantId, // keep the chosen terms; only the moment resets
       receiptId: null,
       denialReason: null,
@@ -516,6 +632,64 @@ export default function CreatePage() {
               </div>
             </div>
 
+            {/* How the audio gets made. Two engines, two pathways: the hosted model invokes a
+                style; the palette conditions on a recording you already have. */}
+            <div>
+              <label className="block text-sm font-semibold mb-3">How should it be made?</label>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {([
+                  ['replicate_stable_audio', 'a model, from your words'],
+                  ['palette', 'your own audio file'],
+                ] as const).map(([kind, label]) => (
+                  <button
+                    key={kind}
+                    onClick={() =>
+                      setGenState((prev) => ({
+                        ...prev,
+                        engine: kind,
+                        error: null,
+                        receiptId: null,
+                        denialReason: null,
+                      }))
+                    }
+                    disabled={genState.isGenerating}
+                    className={`px-3 py-2 rounded-full text-xs font-semibold transition ${
+                      genState.engine === kind
+                        ? 'bg-[#1b1b1b] text-[#fdfff8] hover:opacity-80'
+                        : 'bg-[#fdfff8] text-[#1b1b1b80] border border-[#1b1b1b] hover:opacity-80'
+                    } disabled:opacity-50`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {genState.engine === 'palette' && (
+                <div className="p-4 bg-[#fdfff8] border border-[#1b1b1b] rounded-lg space-y-2">
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] || null
+                      setGenState((prev) => ({ ...prev, audioFile: f, error: null }))
+                    }}
+                    disabled={genState.isGenerating}
+                    className="w-full text-xs"
+                  />
+                  <p className="text-xs text-[#484947]">
+                    Measured in your browser and discarded. The file is never uploaded — the
+                    receipt records only the instruments the measurements pointed at.
+                  </p>
+                  {genState.audioFile && (
+                    <p className="text-xs font-semibold">
+                      {genState.audioFile.name} ·{' '}
+                      {(genState.audioFile.size / 1048576).toFixed(1)} MB
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Whose terms — the permission check happens against whatever is chosen here */}
             <div>
               <label className="block text-sm font-semibold mb-3">Whose terms?</label>
@@ -644,10 +818,13 @@ export default function CreatePage() {
             )}
 
             <button
-              onClick={handleGenerateMusic}
+              onClick={
+                genState.engine === 'palette' ? handleGeneratePalette : handleGenerateMusic
+              }
               disabled={
-                !genState.description.trim() ||
-                !genState.style.trim() ||
+                (genState.engine === 'palette'
+                  ? !genState.audioFile
+                  : !genState.description.trim() || !genState.style.trim()) ||
                 !genState.grantId ||
                 genState.isGenerating
               }
@@ -656,7 +833,9 @@ export default function CreatePage() {
               {genState.isGenerating ? (
                 <span className="flex items-center justify-center gap-2">
                   <div className="w-2 h-2 bg-[#fdfff8] rounded-full animate-bounce"></div>
-                  Composing your moment...
+                  {genState.engine === 'palette'
+                    ? 'Measuring and rendering, here in your browser...'
+                    : 'Composing your moment...'}
                 </span>
               ) : (
                 'Generate My Moment →'
@@ -670,6 +849,15 @@ export default function CreatePage() {
               <h2 className="text-2xl font-bold">Your Moment is Ready</h2>
               <audio key={audioPlayerKey} controls src={genState.generatedAudioUrl} className="w-full" />
               <p className="text-sm text-[#1b1b1b80]">AI-generated audio moment from your description</p>
+              {genState.paletteVoices && (
+                <p className="text-xs text-[#484947]">
+                  Voiced by{' '}
+                  <span className="font-semibold text-[#1b1b1b]">
+                    {genState.paletteVoices.join(', ')}
+                  </span>{' '}
+                  — chosen by measuring your file, which never left this browser.
+                </p>
+              )}
               {chosenGrant && (
                 <div className="text-xs text-[#484947] space-y-1 border-t border-[#1b1b1b] pt-3">
                   <p>

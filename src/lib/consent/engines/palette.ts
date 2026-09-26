@@ -52,11 +52,16 @@ export function validatePaletteSpec(spec: unknown): SpecValidation {
     return { ok: false, error: `Spec is ${size} bytes; the limit is ${MAX_SPEC_BYTES}` }
   }
   const s = spec as Record<string, unknown>
-  for (const key of ['songChoices', 'songKit', 'songTone']) {
+  for (const key of ['songChoices', 'songVoicesPlayed', 'songKit', 'songTone']) {
     if (!(key in s)) return { ok: false, error: `Spec is missing ${key}` }
   }
   if (!Array.isArray(s.songChoices) || s.songChoices.length === 0) {
     return { ok: false, error: 'songChoices must be a non-empty array' }
+  }
+  // What played, not just what was chosen — this build substitutes a patch for any sampled
+  // voice, and the receipt must say so.
+  if (!Array.isArray(s.songVoicesPlayed) || s.songVoicesPlayed.length === 0) {
+    return { ok: false, error: 'songVoicesPlayed must be a non-empty array' }
   }
   return { ok: true, spec }
 }
