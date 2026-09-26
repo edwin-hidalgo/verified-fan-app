@@ -37,8 +37,10 @@ interface Track {
 
 interface User {
   id: string
-  world_username: string
-  world_wallet_address: string
+  // Both are null for email-auth creators — the crash this fixes was assuming otherwise.
+  world_username: string | null
+  world_wallet_address: string | null
+  display_name?: string | null
   orb_verified: boolean
 }
 
@@ -292,7 +294,11 @@ export default function TrackDetailPage() {
                   <div className="flex-1">
                     <p className="text-[#1b1b1b80] text-sm mb-2">Created by</p>
                     <h3 className="text-2xl font-bold flex items-center gap-2 text-[#1b1b1b]">
-                      {creator.world_username || creator.world_wallet_address.slice(0, 10) + '...'}
+                      {creator.world_username ||
+                        creator.display_name ||
+                        (creator.world_wallet_address
+                          ? creator.world_wallet_address.slice(0, 10) + '...'
+                          : 'verified creator')}
                       {creator.orb_verified && (
                         <span className="text-xs border border-[#1b1b1b] text-[#1b1b1b] text-xs px-2 py-0.5 rounded font-semibold">
                           ✓ Verified Human
@@ -300,7 +306,7 @@ export default function TrackDetailPage() {
                       )}
                     </h3>
                     <p className="text-[#1b1b1b80] text-sm font-mono mt-1">
-                      {creator.world_wallet_address}
+                      {creator.world_wallet_address || ''}
                     </p>
                   </div>
                 </div>
