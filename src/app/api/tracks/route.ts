@@ -9,6 +9,8 @@
 
 import { createServerSupabaseClient, getAuthUser } from '@/lib/supabase/server'
 import { ensureAppUser, displayNameFor } from '@/lib/supabase/ensure-user'
+import { getReceiptForUser } from '@/lib/consent/receipts'
+import { getGrant, grantStatus } from '@/lib/consent/grants'
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 
@@ -104,6 +106,52 @@ export async function POST(request: NextRequest) {
     }
     const audioHash = crypto.createHash('sha256').update(audioBuffer).digest('hex')
 
+    // 4b) If this moment came from a gated generation, check its receipt before publishing.
+    //
+    // Three things are asserted: the receipt is yours, it describes a generation that actually
+    // succeeded, and the bytes about to be stored are the bytes the receipt describes. The last
+    // one is why the output was hashed at generation time — it turns "the client says this audio
+    // came from that receipt" into something the server can check.
+    const receiptId: string | null = trackData.receipt_id || null
+    if (receiptId) {
+      const receipt = await getReceiptForUser(supabase, receiptId, authUser.id)
+      if (!receipt) {
+        return NextResponse.json({ error: 'Receipt does not belong to you' }, { status: 403 })
+      }
+      if (receipt.outcome !== 'succeeded') {
+        return NextResponse.json({ error: 'Receipt has no successful output' }, { status: 400 })
+      }
+      if (receipt.output_sha256 && receipt.output_sha256 !== audioHash) {
+        console.error('[tracks-api] receipt/audio mismatch', {
+          receiptId,
+          expected: receipt.output_sha256,
+          got: audioHash,
+        })
+        return NextResponse.json({ error: 'Audio does not match the receipt' }, { status: 400 })
+      }
+
+      // Where output_survival_rule earns its place: a grant withdrawn after generation can
+      // forbid publishing what was already made, and only the grant knows which it is.
+      if (receipt.grant_id) {
+        const grant = await getGrant(supabase, receipt.grant_id)
+        if (
+          grant &&
+          grantStatus(grant) === 'revoked' &&
+          grant.output_survival_rule !== 'outputs_survive'
+        ) {
+          console.log('[tracks-api] publish refused — revoked grant', {
+            receiptId,
+            grantId: grant.id,
+            rule: grant.output_survival_rule,
+          })
+          return NextResponse.json(
+            { error: 'This grant was revoked and its outputs may not be published.' },
+            { status: 403 }
+          )
+        }
+      }
+    }
+
     // 5) Upload audio to Supabase Storage.
     const sanitized = fileName
       .toLowerCase()
@@ -140,6 +188,7 @@ export async function POST(request: NextRequest) {
         cover_image_url: trackData.cover_image_url || null,
         moment_description: trackData.moment_description || null,
         registration_status: 'registered',
+        receipt_id: receiptId,
       })
       .select('id')
       .single()

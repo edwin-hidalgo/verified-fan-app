@@ -29,7 +29,12 @@ export default function Header() {
     { href: '/', label: 'Home' },
     { href: '/catalog', label: 'Feed' },
     { href: '/create', label: 'Create' },
-    ...(user ? [{ href: '/my-tracks', label: 'My Tracks' }] : []),
+    ...(user
+      ? [
+          { href: '/my-tracks', label: 'My Tracks' },
+          { href: '/grants', label: 'Grants' },
+        ]
+      : []),
   ]
 
   const displayName =

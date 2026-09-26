@@ -13,17 +13,22 @@ import type { Grant } from '../types'
 const MODEL = 'stability-ai/stable-audio-2.5'
 const PROMPT_TEMPLATE = '{style}, {description}, instrumental, high quality, studio production'
 
-/** Unknown styles pass through untouched; these just get a fuller description. */
+/**
+ * Copied verbatim from the route this engine replaces. These strings are the receipt's record
+ * of what we did to the request, so changing one changes what past receipts can be compared
+ * against — treat them as data, not as copy to be improved.
+ * Unknown styles pass through untouched; the model handles them naturally.
+ */
 const styleEnrichment: Record<string, string> = {
-  ambient: 'ambient atmospheric soundscape, ethereal pads',
-  'lo-fi': 'lo-fi hip hop beat, warm vinyl texture, mellow',
-  lofi: 'lo-fi hip hop beat, warm vinyl texture, mellow',
-  cinematic: 'cinematic orchestral score, sweeping strings, epic',
-  jazz: 'smooth jazz, warm saxophone, walking bass',
-  folk: 'acoustic folk, fingerpicked guitar, intimate',
-  dark: 'dark moody electronic, deep bass, brooding',
-  upbeat: 'upbeat energetic pop, bright synths, driving rhythm',
-  classical: 'classical piano composition, expressive dynamics',
+  ambient: 'ambient, slow, atmospheric, ethereal pads, meditative, 60bpm',
+  'lo-fi': 'lo-fi hip hop, chill, vinyl crackle, jazzy, relaxed, 85bpm',
+  lofi: 'lo-fi hip hop, chill, vinyl crackle, jazzy, relaxed, 85bpm',
+  cinematic: 'cinematic orchestral, emotional, swelling strings, dramatic, lush',
+  upbeat: 'upbeat, energetic, electronic, punchy, driving, 120bpm',
+  jazz: 'warm jazz, upright bass, brushed drums, saxophone, smooth, 110bpm',
+  folk: 'folk, acoustic guitar, intimate, storytelling, warm, organic',
+  dark: 'dark, brooding, tension, minor chords, atmospheric bass, slow build',
+  classical: 'classical, orchestral, elegant, refined, 90bpm',
 }
 
 const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN })

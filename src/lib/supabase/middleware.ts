@@ -10,7 +10,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 // Routes that require a signed-in user. Browsing + streaming stay public.
-const PROTECTED_PREFIXES = ['/create', '/my-tracks']
+const PROTECTED_PREFIXES = ['/create', '/my-tracks', '/grants']
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request })
