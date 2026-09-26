@@ -1,6 +1,13 @@
 # Spike stack proposal — for approval
 
-_Written 2026-09-23, revised 2026-09-26 · Status: **awaiting Edwin's approval** · Gates: no model code until approved_
+_Written 2026-09-23, revised 2026-09-26 after the Codex review (`CODEX-REVIEW-2026-09-26.md`) · Status: **awaiting Edwin's approval** · Gates: no model code until approved_
+
+> **What this spike can and cannot establish.** Under Edwin's no-artist-until-it-works rule,
+> the result of this window is a **technical feasibility demonstration**: can a per-artist
+> adapter be trained locally, routed through a permission check, receipted and revoked, and
+> does it sound useful. It **cannot** simultaneously satisfy the original contract's
+> *consented-artist* demonstration — that is a separate, later milestone that needs a real
+> grant. Recording that scope change openly, as Codex asked.
 
 `EKOS-SPIKE-PLAN.md` requires that the concrete stack be approved before any model code
 is written. This is that proposal. It also records a change of shape Edwin asked for: the
@@ -54,13 +61,19 @@ serve as the spike's stems. They cannot, for three independent reasons:
 
 ## Track B — the proposed stack
 
-### Licence ✅ — clear, and better than assumed
+### Licence — reviewed, not cleared; commercial adapter use appears available under conditions
 
 Stable Audio 3 ships under the **Stability AI Community License**. Commercial use is free
 below **USD $1M annual revenue**; above it an enterprise licence is required. The licence
 states that *"LoRAs, hypernetworks, fine-tunes, retrains, etc, are not 'foundational
 models'"* and that *"you own outputs generated from the Core Models or Derivative Works."*
-The only bar is building a competing foundational model.
+That quotation is from Stability's licensing FAQ, not the agreement text. The agreement
+itself adds conditions the FAQ elides: the revenue test counts affiliates and revenue
+unrelated to ekos; there are attribution/notice obligations, an acceptable-use policy and
+termination provisions; and output ownership is *as between you and Stability* — it clears
+nothing against third parties. SA3 also incorporates **T5Gemma under separate Gemma terms**.
+Pin the terms for the exact base checkpoint, inference checkpoint and any redistributed
+component before the first download.
 
 This clears the concern `EKOS-SPIKE-PLAN.md` raised. It is materially better than
 MusicGen, whose non-commercial weights are the trap `ROADMAP.md` §9 flagged, and better
@@ -71,18 +84,22 @@ Hugging Face** — terms must be accepted before download.
 Freesound. That is a **vendor provenance account, not evidence that every upstream artist
 opted in.** It satisfies "documented base"; it does not make the base "consented."
 
-### Memory ✅ — fits the 16 GB M4
+### Memory — supported upstream; whether it fits this machine is UNMEASURED
 
-The plan treated this as an open day-1 risk. The training docs publish figures:
+The training docs publish figures, **but for the CUDA trainer** — the table below is not a
+benchmark of MLX training on a 16 GB M4, and an earlier draft of this document presented it
+as one:
 
 | Model | VRAM | With `bf16` + `lora-xs` |
 |---|---|---|
 | medium | ~6.5 GB | ~5.5 GB |
 | small | ~2.5 GB | ~2 GB |
 
-Both fit a 16 GB unified-memory M4 with headroom. `--base_precision bf16` *"halves the
-VRAM used by frozen weights with negligible quality impact."* Still to be **measured**,
-not trusted — batch size and sequence length move this.
+The MLX trainer loads the base in FP16 and does not expose `--base_precision`; its peak
+counter resets after model load, so **measure whole-process memory** (process RSS, MLX
+memory, swap) across pre-encode → train → save → reload → generate at the intended clip
+length, batch size 1 first. Unified memory also serves macOS. It may well fit. "Fits with
+headroom" is not a claim this document makes any more.
 
 ### The stack
 
@@ -90,7 +107,7 @@ not trusted — batch size and sequence length move this.
 |---|---|---|
 | Base | `small-base` first, `medium-base` for quality | Training uses the **BASE** checkpoint (`rectified_flow`), *not* the shipped ARC inference weights |
 | Runtime | MLX on the M4 | Apple Silicon only, Python 3.10+. Local so stems never leave the machine |
-| Adapter | `dora-rows`, rank **16, held fixed across all three data conditions** | DoRA ≥ LoRA at equal rank. Rank is *not tuned* because the data-floor experiment has one independent variable — how much audio — and moving rank at the same time confounds it. One rank-32 comparison on the full-catalogue condition only, if days remain. Do **not** use `lora-xs`: it trades capacity for memory we do not need |
+| Adapter | `dora-rows`, rank **16, held fixed across all three data conditions** | DoRA ≥ LoRA at equal rank. Rank is *not tuned* because the data-floor experiment has one independent variable — how much audio — and moving rank at the same time confounds it. One rank-32 comparison on the full-catalogue condition only, if days remain. `lora-xs` stays available as the memory fallback until memory is measured |
 | Steps | **checkpoint every 250 steps to 2000; select by evaluation** | A step count is a guess; a checkpoint series is a measurement, costs almost nothing, and yields the curve where artist-likeness plateaus and memorization begins — which *is* questions 1 and 5 |
 | LR | `1e-4` | The least informative variable; not worth spike days |
 | Clip length | **a first-class variable — state it and hold it consistent** | Musical style lives in phrases; likely matters more than rank. Measure memory at batch size 1 before raising it |
@@ -109,21 +126,32 @@ unless local training fails.
 
 Edwin's requirement: it must work on **real music** before any artist is approached.
 
-- ❌ **Jamendo — rejected.** Jamendo is currently **suing Suno** over AI training on its
-  CC-licensed catalogue. Sourcing a consent-first demo from the plaintiff in the defining
-  case on this exact question is indefensible whatever the licence text permits.
+- ❌ **Jamendo — rejected as a reputational call.** Jamendo sued Suno in mid-2026 over its
+  non-commercial research dataset and **voluntarily dismissed without prejudice on
+  2026-08-13** — an earlier draft here said "currently suing", which was stale. The
+  dismissal is not a merits ruling in either direction. Sourcing a consent-first demo from
+  that catalogue is still a bad look; it is not a legal finding.
 - ✅ **Free Music Archive, commercially-usable subset — at full sample rate.** 100k+ CC
   tracks with per-file licences and a published configuration restricted to
   commercially-usable data. ⚠️ A 16 kHz packaging of FMA exists; **do not use it.** SA3
   generates stereo at 44.1 kHz, and training on band-limited audio would teach the adapter
   to produce capped, dull output from a base fully capable of full-rate sound. (An earlier
-  draft of this document got this backwards.) Select **one artist with enough catalogue**
+  draft of this document got this backwards.) ⚠️ **Unresolved until a specific artist and file list exist:** FMA's *metadata* licence is
+  distinct from each recording's licence; the small/medium/large packages are 30-second
+  excerpts (only `fma_full` is untrimmed); a "commercial-use" filter can still admit
+  ShareAlike or NoDerivatives; and these are mixed recordings, not stems. Check exact
+  licence versions, attribution, composition vs master rights and third-party samples per
+  file. Select **one artist with enough catalogue**
   that the 1 / few / full ladder actually separates, and **enough range** that a negative
   result is about the method rather than the artist — a sparse solo act does not contain
   the variety the adapter is being asked to learn.
-- ✅ **Edwin's own ekos catalogue as run zero.** He owns the Stable Audio 2.5 outputs under
-  the licence above, so the first end-to-end run carries zero licensing exposure. This
-  tests plumbing, **not** artistic quality — and must be reported that way.
+- ⚠️ **Edwin's own generated tracks as run zero — only the ones he demonstrably generated.**
+  The ekos catalogue is *not* all his: HANDOFF ledger #9 records 29 legacy tracks belonging
+  to other World-ID users, and administrative control of the storage bucket is not
+  ownership. The SA2.5-via-Replicate outputs are governed by *those* service and model
+  terms, not by the SA3 licence quoted above — check them. Even then, permission to use an
+  output is not a guarantee of copyright in it. This run tests plumbing, **not** artistic
+  quality, and is reported that way.
 
 **Framing that must survive into any writeup:** a CC-BY result is a **feasibility and
 quality** finding, explicitly **not** a consent demonstration. `EKOS-SPIKE-PLAN.md` §60
@@ -140,47 +168,36 @@ minimum, and the writeup must not claim otherwise.
 
 ## Experiment design — the parts that decide whether the result means anything
 
-### Captions: describe the music, never name the artist, no trigger token
+### Captions: content-only, no trigger token — an engineering default, not a doctrine
 
-Captions are half the training signal — the adapter learns to associate their words with
-the sound. The common practice for style adapters is a **trigger token**: a rare word in
-every caption that the style binds to, which you must then type to get the style. **This
-proposal rejects that**, for a reason that is about the thesis rather than about ML.
+Captions are half the training signal. Every clip gets a **content description**
+(`"warm jazz trio, upright bass, brushed drums, 92 bpm"`) and the artist is not named.
 
-A trigger token moves invocation into the prompt: whoever types the word invokes the
-artist. That is exactly the *"statistical guessing"* this architecture exists to replace.
-The brief's requirement is that "can this artist be invoked" is *"answered by a lookup
-against a terms record, not inferred by the model."* With **content-only captions**
-(`"warm jazz trio, upright bass, brushed drums, 92 bpm"`) the artist's identity lives in the
-**grant record** and their sound lives in the **weights** — and the only way to invoke them
-through the product is for the server to load their adapter after a permission check. The
-architecture enforces the policy instead of depending on it.
+An earlier draft argued this was required by the consent architecture — that a trigger
+token would "move invocation into the prompt." **That argument was wrong and is withdrawn**
+(Codex review, C.7): it confused *conditioning* with *authorization*. The server can check
+the grant, load the adapter, inject a token internally and record the execution; a user
+typing a token does not load an adapter that was never loaded. Authorization lives in
+whether the worker loads the file, under either captioning scheme. The trainer also freezes
+the T5Gemma text encoder and learns adapter weights, so the "all artist information squeezes
+through one embedding" claim does not describe this pipeline.
 
-What follows from that, dimension by dimension:
+What survives: content-only captions are a reasonable **initial engineering choice** — they
+avoid coupling the adapter to a magic word, keep the artist's name out of training text, and
+make the adapter's effect testable on ordinary prompts. Neither scheme guarantees
+selectivity, freedom from incidental-feature learning, or artist recognition; omitting the
+name does not prevent voice imitation. A trigger-token comparison is **optional empirical
+work if days remain**, not a test of whether the consent architecture holds.
 
-| | Trigger token | Content-only (proposed) |
-|---|---|---|
-| Where control lives | the prompt (user-side) | which adapter is loaded (server-side) |
-| What the receipt can claim | "a prompt contained this token" — evidence of a request | "adapter X, hash Y, strength Z was loaded" — a fact about execution |
-| Revocation | depends partly on a "secret" word that appears in every log | stop loading the file; there is no word to leak |
-| Artist's name in the model | becomes a name-like string; drags in AB 2602 / ELVIS Act territory | never enters training text at all |
-| Music: style from small data | all the artist's information squeezes through one embedding; tends to bind to incidental features (room, mastering, one tempo) — *song*-likeness masquerading as *artist*-likeness | shifts the whole distribution; character shows across many prompts, which is what artist-likeness means |
-| Music: selectivity | base stays clean for prompts without the token | adapter is always on; managed by per-adapter **strength** (0–10) and by unloading, not by the prompt |
-| The data-floor measurement | partly measures "how well did one embedding train" | measures "how much audio until the artist is recognizable" — the actual question |
+### The base control
 
-Honest caveats: style leakage happens either way (the brief already says style selection
-is *"the platform's disclosed routing decision, not proof the user intended a particular
-artist"*), and this recommendation comes from the requirements rather than from a published
-comparison on music adapters. So: **run one trigger-token A/B, same data, full-catalogue
-condition only.** One extra run, and the highest-information comparison available.
-
-### The control that must run first
-
-**Generate from the unmodified base model with the artist's name in the prompt, before any
-adapter exists.** If the base already leans toward the artist from the name alone, every
-adapter result is confounded — "adapter plus whatever the base already knew" would be
-credited to the adapter. One afternoon, and it protects every quality claim afterward.
-Log the observation carefully: a behavioural response is **not** proof of training data.
+**Generate from the base with the artist's name in the prompt before any adapter exists** —
+not because a response would "confound everything" (a matched control lets you measure the
+adapter's *incremental* effect regardless), but because you need the baseline to measure
+against, and because the observation itself is worth logging. Say which base: the training
+**BASE** checkpoint and the deployed **ARC** inference checkpoint are different models. Hold
+prompt, seed, duration, sampler, guidance and checkpoint constant; change only the adapter
+condition. A behavioural response to a name is **not** proof of training data.
 
 ### Prompt matrix
 
@@ -191,8 +208,12 @@ Log the observation carefully: a behavioural response is **not** proof of traini
 | few songs | ✅ | ✅ | — |
 | full catalogue | ✅ | ✅ | ✅ |
 
-Two fixed seeds per cell. The third column separates "a name did something" from "*this*
-name did something." **Commit the prompts and seeds to the repo, dated, before the first
+Two fixed seeds per cell is a floor, not a design: two unanimous forced-choice results have
+a **25% chance probability**, and even 16 independent pairs give only ~45% power to detect a
+70% preference. The third column cannot establish what *any* name does — one other artist
+brings its own genre, familiarity and token effects — so treat name routing as a separate
+**policy** test (same content prompt with and without the target name, plus a neutral
+invented label) rather than half of the quality experiment. **Commit the prompts and seeds to the repo, dated, before the first
 training run** — post-hoc selection of flattering prompts is invisible and irresistible.
 
 ### Evaluation
@@ -200,26 +221,44 @@ training run** — post-hoc selection of flattering prompts is invisible and irr
 - **Blind, mandatory.** Randomised, labels revealed after. The everything-hums v3.71
   direction change came from a blind test where real recordings beat synthesised voices;
   same discipline here.
-- **Define "recognizable" before listening:** reference track, then two candidates, forced
-  choice — "which is by the same artist?" A number, not an impression.
-- **Nest the data ladder** (1 ⊂ few ⊂ full) so it is a pure quantity ladder, and **hold
-  1–2 songs out of all three conditions** so unseen material can separate "sounds like the
-  artist" from "replayed the training set."
+- **Define the listening question before listening** — and not as "which is by the same
+  artist?", which asserts authorship. Ask which better matches *specified characteristics*
+  of held-out references, loudness-matched, with same-genre distractors and real same-artist
+  references as controls so the panel is not just recognising instrumentation. Measure
+  absolute usefulness separately: an adapter can beat a poor base and still be unusable.
+- **The data ladder is exploratory, not a floor-finder.** Nesting (1 ⊂ few ⊂ full) also
+  changes repertoire, instrumentation, production and caption coverage; one chosen song may
+  be unusually representative or not; equal steps give small sets more repetitions while
+  equal epochs give large sets more optimisation. Decide which question is being asked,
+  record both training exposure and unique audio minutes, and **hold 1–2 songs out of all
+  three conditions**. Three differently sized adapters are not three replications: this can
+  identify a promising configuration for one dataset; it cannot locate a minimum, and a
+  failure cannot show that a data size is insufficient.
+- **Checkpoint selection uses a separate development set.** Eight checkpoints × three
+  adapters × eight prompts × two seeds is 384 adapted generations before controls; selecting
+  the checkpoint on the final listening material contaminates it. Select on a small dev set,
+  freeze, then evaluate untouched prompts, seeds and held-out songs. Keep failed outputs.
 - **Baseline the memorization detector on the unmodified base** before judging any adapter;
   "does it regurgitate" is meaningless without knowing what normal similarity looks like.
 - **2–3 paid blind listeners**, working musicians. One artist's verdict is n=1; three
   independent blind verdicts turn an anecdote into a finding, cheaply.
-- **Light mastering of outputs** is a near-free lever on a *perceptual* bar, and probably
-  moves "plausibly a product" more than rank 16 vs 32 does. Report raw and mastered
-  separately.
+- **No bespoke mastering inside the spike.** It is another intervention and more evaluator
+  work; loudness-match and compare raw. (It remains a cheap lever for a later product
+  question.)
+- **The copying detector needs its own validation:** plant a known copied excerpt and a
+  transformed copy, include same-genre negatives, search training tracks with local
+  alignment, review flagged passages. A detector that misses a planted copy cannot support
+  a clean result.
 
-### Budget, reshaped
+### Budget and clock — to be reconciled before approval
 
-The $100 was sized for GPU time that local training does not need. Redirect: **blind
-listeners inside the spike**; an **artist honorarium after it** — the plan assumed
-participation without a fee, and paying for their time gets better stems, a more careful
-listen, and a relationship rather than a favour. Best dollar in the project. The $60 GPU
-line stays as the Replicate fallback reserve.
+The $100 was sized for GPU time that local training may not need — but "redirect the GPU
+money while keeping the full $60 reserve" leaves $40 for everything else, and no listener
+fees, evaluation hours or revised totals are specified. Before approval: **one dated 14-day
+window** that starts when spike implementation begins (not when an optimizer first runs —
+Track A work counts), explicit cash lines (listeners, any data, any fallback GPU), and
+measured labour and throughput at the feasibility gate. The artist honorarium belongs to
+the later consent-validation milestone, and moving it there moves that outcome there too.
 
 ### Track A ↔ Track B seam
 
@@ -237,23 +276,42 @@ demo, reached without a GPU hour:
    `grantor × asset × pathway × terms`, with **pathway toggles as separate booleans**
    (`may_train`, `may_condition`, `may_invoke_style`, `may_distribute_commercially`) and a
    human-readable `scope_specificity_text`. Both are legally load-bearing: California
-   **AB 2602** voids digital-replica grants lacking a reasonably specific description of
-   intended uses, so a blanket grant is not an option.
+   **AB 2602** — read narrowly: it addresses particular personal/professional-services
+   provisions for defined voice/likeness replicas, with conditions and an exception, and it
+   does not regulate instrumental style resemblance or mandate database fields. Keep the
+   pathway toggles and the specific-use text because they make consent *better*, not because
+   a schema achieves statutory compliance.
    This is **not** a revival of the licence-terms UI dropped in the July refocus.
 2. **Permission check at generation time** — a lookup against the record, never inferred
    by the model. The **denied** path must be demonstrable, not just the authorized one.
 3. **Receipt**, append-only, preserving six fields: original request or selection · any
    rewriting applied · resolved artist/song/model · grant plus terms version · **the
    assets actually used** · generation outcome.
-4. **Revocation** — delete the grant, show the record cannot be invoked including cached
-   and queued paths, and state what happens to already-generated outputs. **Do not claim**
-   unknown influence in the base has been erased.
+4. **Revocation** — **never delete the grant**; that destroys the historical authorization
+   record. Retain immutable grant versions, mark revocation with an effective timestamp, and
+   deny subsequent use at the worker. Test pristine → adapted → pristine execution, queued
+   jobs, concurrent requests, and revocation arriving before output delivery (an adapter
+   merged into an in-memory model is not unloaded by deleting its file). State plainly that
+   revocation stops ekos-controlled use and cannot recall assets already distributed —
+   including a 1 KB palette a browser has already received. Smallness does not make
+   revocation stronger. **Do not claim** unknown influence in the base has been erased.
 
-⚠️ **One concrete engineering constraint.** `everything-hums` carries an open defect (#64):
-`analysePalette` is nondeterministic across processes — on bit-identical input a cluster's
-`flatness` returns **0.317 or 0.790**, and flatness feeds `noise`, `detune` and `vib`. The
-receipt must therefore store **the actual spec that was used**, not a promise it can be
-re-derived. A receipt that cannot reproduce itself is not a receipt.
+⚠️ **Receipts record what the worker observed** — model and adapter hashes, inference
+settings, grant version, outcome, output hash. A receipt documents an execution; it need not
+reproduce it bit for bit, and an earlier line here ("a receipt that cannot reproduce itself
+is not a receipt") was wrong. The relevant `everything-hums` defect (#64 — `analysePalette`
+returns different `flatness` across processes on identical input) still means: store the
+spec actually used, never a promise to re-derive it.
+
+⚠️ **Track A's generation engine is a decision, not a given.** Codex recommends building
+Track A against a *tiny generation interface* with explicitly labelled test grants and
+connecting the real adapter worker when Track B passes — because integrating the
+everything-hums palette route adds a second engine, its own asset-licence chain (the
+recorded voice bank has rights of its own), the nondeterminism above, and a separate
+revocation boundary, without answering whether artist adapters make useful music. And the
+iTunes previews it analyses are **not cleared by discarding the audio**: Apple's Search API
+terms restrict previews to promotional use and restrict caching. If the palette route is
+used at all, use an owned or properly licensed audio fixture. **Pending Edwin's call.**
 
 ## Open questions this proposal does NOT answer ❓
 
@@ -264,7 +322,9 @@ re-derived. A receipt that cannot reproduce itself is not a receipt.
   one third-party source says medium "needs a CUDA GPU", which likely describes the
   reference implementation, but it is settled by running it on day 1, not by reading.
 - How to caption clips at scale, and how much caption quality moves the result.
-- Whether CC-BY training is defensible in practice while Jamendo v. Suno is live.
+- Whether CC-BY training is *reputationally* defensible for a consent-first brand. (Legally,
+  Creative Commons says its licences can authorize AI uses subject to their conditions;
+  AI-specific consent wording is ekos's *stronger* standard, not a copyright prerequisite.)
 - Whether one FMA artist's catalogue is large enough for the "full catalogue" condition.
 
 ## What approval means

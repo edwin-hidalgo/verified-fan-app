@@ -1,6 +1,6 @@
 # HANDOFF — ekos
 
-_Last updated: 2026-09-26 · Repo: `~/Documents/verified-fan-app` · Branch: `refocus-create-stream`_
+_Last updated: 2026-09-26 (evening) · Repo: `~/Documents/verified-fan-app` · Branch: `refocus-create-stream`_
 
 **This file is the source of truth for ekos.** It supersedes the README, the deployed
 site, and every loose planning doc in `~/Documents/Onus/` and `~/Downloads/` on
@@ -30,11 +30,11 @@ is being built inside.
 | | |
 |---|---|
 | Working branch | `refocus-create-stream` — **local only, never pushed** |
-| HEAD | `d4b85d8` (2026-09-10) "Fix JPEG MIME type for resized photo uploads" |
-| `main` | `672b205` — the **old hackathon app**. 3 commits behind. Do not merge to it yet |
+| HEAD | `17a8c37` (2026-09-26) — last code change `d4b85d8` (2026-09-10); everything since is docs |
+| `main` | `672b205` — the **old hackathon app**. Nine commits behind. Do not merge to it yet |
 | Tag `hackathon-final` | `672b205` — the last commit made *during* the hackathon weekend. **NOT the submitted app** (see §7). Local only |
 | Tag `hackathon-as-deployed` | `281c6b4` — the app as it actually shipped and demoed, added 2026-09-26. Local only |
-| Branch `archive/hackathon-public` | `281c6b4` + one guard file; the source of the public archive (§7) |
+| Branch `archive/hackathon-public` | `281c6b4` + guard + creator-field allowlist (`ccbdacb`); the source of the public archive (§7) |
 | Production | `verified-fan-app.vercel.app` — still serves the **dead hackathon build** |
 | Hackathon archive | `ekos-world-build-3-hack.vercel.app` — public, read-only, deliberate (§8) |
 | Supabase | project `gwafkmkmoaqgsdnvuqzn`, free tier, 30 tracks / 35 plays |
@@ -157,14 +157,15 @@ third-party training infrastructure · modeled figures carry a visible `~` and t
 | 4 | Create `spike/consented-adapters` off the refocus branch | Sep 8 | OPEN, blocked by #3 |
 | 5 | Public shareable link for the hackathon build | Sep 10 | **DONE 2026-09-21, WRONG VERSION; REDONE 2026-09-26.** First deploy archived tag `hackathon-final`, which is not the submitted app — Edwin: *"what you archived and what I submitted are vastly different."* Redeployed from `281c6b4` to the same URL; all six pages now match production with similarity 1.000 (§7) |
 | 6 | Identify a consenting artist + real consented stems | Sep 8 | **OPEN — the long pole.** License-permitted audio proves plumbing but cannot satisfy the consented-artist demonstration. Find this before spending the 14-day window waiting for files |
-| 7 | Approve the model stack before any model code | Sep 10 | **PROPOSAL WRITTEN 2026-09-23 — `SPIKE-STACK.md`, awaiting Edwin.** Licence and memory both verified and both better than assumed: Stability AI Community License allows commercial use under $1M revenue and explicitly permits LoRAs; training needs ~6.5GB (medium) / ~2.5GB (small), so the 16GB M4 fits |
+| 7 | Approve the model stack before any model code | Sep 10 | **PROPOSAL WRITTEN 2026-09-23 — `SPIKE-STACK.md`, awaiting Edwin.** Licence: commercial adapter use appears available under the Stability AI Community License's conditions (revenue test, attribution, AUP, separate Gemma terms for T5Gemma) — *reviewed, not cleared*. Memory: upstream publishes ~6.5GB (medium) / ~2.5GB (small) **for the CUDA trainer**; whether the MLX path fits a 16GB M4 at useful throughput is **unmeasured** — Codex caught the runtime mix-up |
 | 22 | **Split the spike into Track A and Track B** | Sep 23 (Edwin) | **decided.** Track A = the consent architecture (terms record, permission check, receipt, revocation) using the `everything-hums` song-palette route as its generation engine — no training, no GPU, no artist, ~$0. Track B = the adapter proof, which must work on real music **before** any artist is approached. Edwin: *"we need to have this working even if mvp"* |
 | 23 | `everything-hums` song extraction as an invocation mechanism | Sep 23 (Edwin) | **adopted for Track A.** It implements `EKOS-SCOPE-MAP.md` §A1's *second* pathway — audio conditioning — which the spike never tested; only training was ever in scope. Since its v3.71 a record's clusters **choose the nearest voice from a bank** rather than synthesise one, which is this brief's own definition of invocation: routing, not guessing. The artifact is ~1.06 KB of JSON from a 2.6 MB excerpt that is discarded, which makes revocation genuinely demonstrable. It lends timbre, kit and tone — it does **not** generate in an artist's style, so it does not replace Track B |
 | 24 | 30-second iTunes previews as the training stems | Sep 23 (Edwin) | **declined, with the reasoning kept.** Three independent reasons: analysing a preview and discarding it is a different act from baking it into distributable weights; it would falsify the spike's own claim in its first experiment (*"license-permitted ≠ consented"*, and previews are not even that); and one 30s preview is ~1 clip against a ~20–50 clip floor. The instinct underneath — do not approach an artist with a hypothetical — is honoured by the Track A/B split instead |
 | 26 | "What is 16 kHz?" | Sep 25 (Edwin) | **my error, corrected.** SPIKE-STACK claimed SA3 outputs 16 kHz; it generates stereo at **44.1 kHz**. The 16 kHz was the FMA *dataset packaging*, which the doc then recommended *because* it matched — so the real finding is: **use full-rate FMA audio, not the 16 kHz packaging**, or the adapter learns to produce capped output |
 | 27 | "What are rank 16 / dora-rows / steps — and what do you recommend?" | Sep 26 (Edwin) | **answered; defaults replaced with a designed experiment** in SPIKE-STACK: rank held at 16 so the data ladder means something, checkpoint series instead of a step count, content-only captions with no trigger token (a thesis requirement, not an ML preference), one trigger-token A/B, the base-model-with-name control run first, a 3-column prompt matrix, blind forced-choice evaluation, clip length as a first-class variable, budget redirected to paid blind listeners and an artist honorarium |
-| 28 | Codex takeover review with `gpt-6-astra` at high effort | Sep 26 (Edwin) | **in progress** — CLI needed updating (v0.142.5 could not run the model). Brief: read this file, SPIKE-STACK and the archive branch; say what it would change and what it would do next as if owning the work |
-| 25 | Where Track B's training audio comes from | Sep 23 | **decided.** **Jamendo rejected** — it is currently suing Suno over AI training on its CC-licensed catalogue, so sourcing a consent-first demo from that plaintiff is indefensible whatever the licence permits. Use the **Free Music Archive commercially-usable subset** (one artist with enough catalogue for all three data sizes), with Edwin's **own ekos catalogue as run zero** since he owns those Stable Audio outputs. Any CC-BY result is a feasibility finding, **never** a consent demonstration |
+| 28 | Codex takeover review with `gpt-6-astra` at high effort | Sep 26 (Edwin) | **DONE — `CODEX-REVIEW-2026-09-26.md`, verbatim.** Verdict: *"I would not approve SPIKE-STACK.md as written."* Accepted and applied the same day: the creator-email exposure (#29); the memory figures were CUDA-trainer numbers, not MLX; the licence was "reviewed", not "clear"; Jamendo's suit was dismissed in August; revocation must be a timestamped state, not a deleted grant (deleting destroys the authorization record); a receipt documents an execution, it need not reproduce it; the data-floor design cannot locate a minimum and must be labelled exploratory; checkpoint selection needs a dev set separate from the final evaluation; the trigger-token rationale confused conditioning with authorization — content-only captions stay as an engineering default, the ideological argument is withdrawn; iTunes previews are not cleared for Track A by discarding the audio. **Pending Edwin's call:** back up to GitHub *now* rather than after the PNG test (Codex: *"my September plan prescribed that sequence. It was wrong."*); fix the same email leak on production; keep or drop the everything-hums engine from Track A's critical path |
+| 29 | **Archive returned the creator's email** via `GET /api/tracks/[id]` | Sep 26 (Codex) | **fixed on the archive 2026-09-26** (`ccbdacb`: allowlist `id, display_name, world_username, orb_verified, created_at`; verified live — no email in list or detail). **STILL OPEN ON PRODUCTION** `verified-fan-app.vercel.app`, where the same field has been public since migration 004 (July). Only one account has an email — Edwin's own — so exposure is his address, not users'. Fixing production means redeploying it, which is Edwin's decision |
+| 25 | Where Track B's training audio comes from | Sep 23 | **decided.** **Jamendo rejected** — as a reputational call, not a legal one. (An earlier version of this row said Jamendo was "currently suing" Suno; it voluntarily dismissed without prejudice on 2026-08-13 — stale premise, caught by Codex. The dismissal is not a merits ruling either way.) Use the **Free Music Archive commercially-usable subset** (one artist with enough catalogue for all three data sizes), with Edwin's **own ekos catalogue as run zero** since he owns those Stable Audio outputs. Any CC-BY result is a feasibility finding, **never** a consent demonstration |
 | 8 | Write the hackathon's AI integration into `CAREER-AND-PORTFOLIO.md` | Sep 10 | **OPEN** — the other half of the turn Codex was cut off mid-way through |
 | 9 | 29 legacy hackathon tracks not re-linked to pescatios | Jul / Sep 8 | **OPEN, and needs a decision.** They belong to old World-ID users. Planned one-time `UPDATE tracks SET user_id='3441a4a9-…'`, never executed; whether to rewrite `artist_name` too was never settled. `EKOS-SPIKE-PLAN.md` silently drops the item — **ask Edwin whether it is cancelled or forgotten** |
 | 10 | `/catalog` license filter pills are dead UI | Jul | OPEN — off-message. Nothing sets `ai_training_allowed` / `sync_allowed` / `commercial_use_allowed`, so all three always render `(0)` |
@@ -193,10 +194,12 @@ third-party training infrastructure · modeled figures carry a visible `~` and t
 | **Tag `hackathon-final`** | Its name says "final"; it is the last commit of the weekend, and the submitted app carried uncommitted work on top of it. Trusting the name shipped the wrong archive once. Use `hackathon-as-deployed` |
 | The deployed `verified-fan-app.vercel.app` | The dead hackathon product, not this codebase |
 
-**Current and trustworthy:** `SPIKE-STACK.md` in this repo (2026-09-23, the stack
-proposal awaiting approval), `~/Documents/Onus/EKOS-SPIKE-PLAN.md` (2026-09-10, the
-operative plan), `STUDIO-SPIKE-BRIEF.md` (the spike contract), `EKOS-SCOPE-MAP.md` (the
-licensing research), `ONUS-CODEX-HANDOFF.md` (full reasoning).
+**Current:** `SPIKE-STACK.md` and `CODEX-REVIEW-2026-09-26.md` in this repo.
+**Historical, still worth reading:** `~/Documents/Onus/EKOS-SPIKE-PLAN.md` (2026-09-10),
+`EKOS-SCOPE-MAP.md` (the licensing research), `ONUS-CODEX-HANDOFF.md` (full reasoning).
+`STUDIO-SPIKE-BRIEF.md` still carries the retracted "fully gone from generation" wording,
+the overstated demand inference and obsolete repo state — read it as the original contract,
+not as current instruction.
 
 ## 6. Traps
 
@@ -232,7 +235,8 @@ that stayed uncommitted until it was captured on 2026-06-30 as `281c6b4`. Every
 distinctive string on production — "first rights registry where only humans", "rail
 problem", "Read the ekos lightpaper", "The Entry Point", "A neutral rail" — exists at
 `281c6b4` and none at `672b205`; the nav reads **Feed** there and **Catalog** at the tag.
-Redeployed 2026-09-26 to the same URL.
+Redeployed 2026-09-26 to the same URL. Text parity is what was verified — not pixel
+parity, playback in a real browser, or cover art; those remain manual checks.
 
 **The lesson is about verification, not the commit.** The first pass checked HTTP 200s,
 403s on write paths and that audio elements rendered — all true, all beside the point. The
@@ -247,8 +251,11 @@ into the live Supabase project or spend real money on Replicate and Anthropic. I
 403 to every non-GET on `/api/*` **and** to `/api/debug/*` — `281c6b4` carries a debug
 route whose own comment says *"Remove this before shipping to production!"* and which
 enumerates every user with wallet and username. The deployment sets only the three Supabase
-vars and omits `REPLICATE_API_TOKEN`, `ANTHROPIC_API_KEY`, `PINATA_JWT` and `STORY_*` —
-two independent locks on the same door.
+vars and omits `REPLICATE_API_TOKEN`, `ANTHROPIC_API_KEY`, `PINATA_JWT` and `STORY_*`.
+**These are not two independent locks** (a claim this section used to make): the archive
+holds the service-role key, so any *read* path can leak whatever it selects. One did —
+`GET /api/tracks/[id]` returned the creator's email until `ccbdacb` allowlisted the
+fields. Production still does (§4 ledger #29).
 
 Verified at redeploy: six pages identical to production, all write/spend paths and the
 debug route 403, no JWT embedded in delivered HTML, `/api/stats` unchanged at 30 tracks /
@@ -274,7 +281,10 @@ fix in `deprecated/lib/story/register.ts`, not registration itself. Do not under
 4. **Approve the model stack**, then day-1 feasibility: does Stable Audio 3 Medium training
    actually fit in 16GB, and can the full experiment fit the remaining cap at measured
    throughput? If neither local nor private GPU fits, stop and report the feasibility failure.
-5. **Find the artist.** Parallel to all of the above — it is the longest lead time.
+5. **The artist comes after Tracks A and B both work** — Edwin's rule, reaffirmed 2026-09-25.
+   What can run in parallel is *identifying* the data supply for Track B: actual files,
+   usable minutes, independent songs, licences, held-out songs. "An FMA artist with enough
+   catalogue" is a dependency, not a dataset, until that list exists.
 
 A negative result is an acceptable terminating outcome. A spike that does not terminate has
 become the product by accident.
