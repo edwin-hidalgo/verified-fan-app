@@ -2,6 +2,15 @@
 
 _Written 2026-09-23, revised 2026-09-26 after the Codex review (`CODEX-REVIEW-2026-09-26.md`) · Status: **awaiting Edwin's approval** · Gates: no model code until approved_
 
+> **Sequencing, decided 2026-09-26.** (1) A **two-day feasibility gate first, no artist**: one
+> complete local cycle — encode, brief train, save, reload, generate — on audio Edwin owns,
+> whole-process memory recorded. If training does not fit this machine, stop; nobody has been
+> asked for anything. (2) **Then a bounded, private, paid ask** to one artist Edwin already
+> knows: 8–10 tracks, stems if possible, laptop-only, never uploaded, never published, deleted
+> after, with the terms written down — that note is the **first real grant record**. (3) The
+> **14-day clock starts when the files arrive**, not before. The honorarium moves **inside**
+> the budget. FMA is the fallback if nobody says yes, labelled as one.
+>
 > **What this spike can and cannot establish.** Under Edwin's no-artist-until-it-works rule,
 > the result of this window is a **technical feasibility demonstration**: can a per-artist
 > adapter be trained locally, routed through a permission check, receipted and revoked, and
