@@ -67,3 +67,6 @@ training/**/*.mp3
 training/*.flac
 training/**/*.flac
 training/.env
+
+# upstream clone, pinned by hash in training/README.md — never commit it
+training/upstream/
