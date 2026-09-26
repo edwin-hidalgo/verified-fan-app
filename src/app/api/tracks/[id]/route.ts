@@ -42,10 +42,15 @@ export async function GET(
       )
     }
 
-    // Fetch creator
+    // Fetch creator — PUBLIC FIELDS ONLY.
+    // ARCHIVE-ONLY CHANGE: the deployed build selected '*' here, which returned
+    // the whole users row — including `email` (added by migration 004) and the
+    // World wallet/nullifier columns — to anyone who fetched a track. Found by
+    // the 2026-09-26 Codex review. The archive is a public portfolio link and
+    // must not enumerate creator contact details.
     const { data: creator, error: creatorError } = await supabase
       .from('users')
-      .select('*')
+      .select('id, display_name, world_username, orb_verified, created_at')
       .eq('id', track.user_id)
       .single()
 
