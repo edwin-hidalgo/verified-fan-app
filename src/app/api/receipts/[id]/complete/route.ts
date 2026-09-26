@@ -15,7 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient, getAuthUser } from '@/lib/supabase/server'
+import { createAdminClient, getAuthUser } from '@/lib/supabase/server'
 import { checkPermission } from '@/lib/consent/permission'
 import { completeReceipt, getReceiptForUser } from '@/lib/consent/receipts'
 import { PALETTE_ENGINE_VERSION, validatePaletteSpec } from '@/lib/consent/engines/palette'
@@ -31,7 +31,7 @@ export async function POST(
     }
 
     const { id } = await params
-    const supabase = await createServerSupabaseClient()
+    const supabase = createAdminClient()
     const receipt = await getReceiptForUser(supabase, id, authUser.id)
     if (!receipt) {
       return NextResponse.json({ error: 'Receipt not found' }, { status: 404 })
@@ -53,8 +53,8 @@ export async function POST(
         outcome: 'failed',
         outcome_detail: typeof body.error === 'string' ? body.error : 'Client render failed',
       })
-      const updated = await getReceiptForUser(supabase, receipt.id, authUser.id)
-      return NextResponse.json({ receipt: updated })
+      const failedReceipt = await getReceiptForUser(supabase, receipt.id, authUser.id)
+      return NextResponse.json({ receipt: failedReceipt })
     }
 
     if (body.outcome !== 'succeeded') {
@@ -86,7 +86,7 @@ export async function POST(
       }
     }
 
-    await completeReceipt(supabase, receipt.id, {
+    const { updated: didRecord } = await completeReceipt(supabase, receipt.id, {
       outcome: 'succeeded',
       output_sha256: typeof body.output_sha256 === 'string' ? body.output_sha256 : null,
       assets_used: {
@@ -96,10 +96,16 @@ export async function POST(
         source_sha256: typeof body.source_sha256 === 'string' ? body.source_sha256 : null,
       },
     })
+    // Never report success for a write that did not land. This is exactly how the RLS bug hid:
+    // the route logged "recorded" while the row was untouched.
+    if (!didRecord) {
+      console.error('[receipts-complete] write did not land', { receiptId: receipt.id })
+      return NextResponse.json({ error: 'Failed to record the render' }, { status: 500 })
+    }
 
     console.log('[receipts-complete] palette render recorded', { receiptId: receipt.id })
-    const updated = await getReceiptForUser(supabase, receipt.id, authUser.id)
-    return NextResponse.json({ receipt: updated })
+    const finalReceipt = await getReceiptForUser(supabase, receipt.id, authUser.id)
+    return NextResponse.json({ receipt: finalReceipt })
   } catch (error) {
     console.error('[receipts-complete] Error:', error)
     return NextResponse.json({ error: 'Failed to complete receipt' }, { status: 500 })

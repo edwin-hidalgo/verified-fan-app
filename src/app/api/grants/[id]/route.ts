@@ -6,7 +6,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient, getAuthUser } from '@/lib/supabase/server'
+import { createAdminClient, getAuthUser } from '@/lib/supabase/server'
 import { getGrant, grantStatus } from '@/lib/consent/grants'
 
 export async function GET(
@@ -19,7 +19,7 @@ export async function GET(
   }
 
   const { id } = await params
-  const supabase = await createServerSupabaseClient()
+  const supabase = createAdminClient()
   const grant = await getGrant(supabase, id)
   if (!grant) {
     return NextResponse.json({ error: 'Grant not found' }, { status: 404 })

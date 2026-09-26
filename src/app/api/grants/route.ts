@@ -9,7 +9,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient, getAuthUser } from '@/lib/supabase/server'
+import { createAdminClient, getAuthUser } from '@/lib/supabase/server'
 import { grantStatus, listGrants } from '@/lib/consent/grants'
 
 export async function GET() {
@@ -18,7 +18,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
   }
 
-  const supabase = await createServerSupabaseClient()
+  const supabase = createAdminClient()
   const grants = await listGrants(supabase)
   return NextResponse.json({
     grants: grants.map((g) => ({ ...g, status: grantStatus(g) })),

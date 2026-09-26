@@ -9,7 +9,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient, getAuthUser } from '@/lib/supabase/server'
+import { createAdminClient, getAuthUser } from '@/lib/supabase/server'
 import { getReceiptForUser } from '@/lib/consent/receipts'
 import { getGrant, grantStatus } from '@/lib/consent/grants'
 
@@ -23,7 +23,7 @@ export async function GET(
   }
 
   const { id } = await params
-  const supabase = await createServerSupabaseClient()
+  const supabase = createAdminClient()
   const receipt = await getReceiptForUser(supabase, id, authUser.id)
   if (!receipt) {
     return NextResponse.json({ error: 'Receipt not found' }, { status: 404 })

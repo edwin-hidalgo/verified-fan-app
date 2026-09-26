@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient, getAuthUser } from '@/lib/supabase/server'
+import { createAdminClient, getAuthUser } from '@/lib/supabase/server'
 import { listReceiptsForUser } from '@/lib/consent/receipts'
 
 export async function GET(request: NextRequest) {
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   }
 
   const grantId = new URL(request.url).searchParams.get('grant_id') || undefined
-  const supabase = await createServerSupabaseClient()
+  const supabase = createAdminClient()
   const receipts = await listReceiptsForUser(supabase, authUser.id, { grantId })
   return NextResponse.json({ receipts })
 }

@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient, getAuthUser } from '@/lib/supabase/server'
+import { createAdminClient, getAuthUser } from '@/lib/supabase/server'
 import { grantStatus, revokeGrant } from '@/lib/consent/grants'
 
 export async function POST(
@@ -29,7 +29,7 @@ export async function POST(
       .then((b) => (typeof b?.reason === 'string' ? b.reason : null))
       .catch(() => null)
 
-    const supabase = await createServerSupabaseClient()
+    const supabase = createAdminClient()
     const result = await revokeGrant(supabase, {
       grantId: id,
       actorUserId: authUser.id,

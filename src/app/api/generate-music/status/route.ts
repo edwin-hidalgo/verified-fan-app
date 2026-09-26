@@ -14,7 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient, getAuthUser } from '@/lib/supabase/server'
+import { createAdminClient, getAuthUser } from '@/lib/supabase/server'
 import { checkPermission } from '@/lib/consent/permission'
 import { completeReceipt, getReceiptByEngineJob } from '@/lib/consent/receipts'
 import { getEngine } from '@/lib/consent/engines'
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Missing prediction id' }, { status: 400 })
     }
 
-    const supabase = await createServerSupabaseClient()
+    const supabase = createAdminClient()
     const receipt = await getReceiptByEngineJob(supabase, jobId)
     if (!receipt) {
       return NextResponse.json({ error: 'Unknown prediction' }, { status: 404 })

@@ -111,7 +111,16 @@ export async function completeReceipt(
     console.error('[consent] completeReceipt error:', error.message)
     return { updated: false }
   }
-  return { updated: (data?.length ?? 0) > 0 }
+
+  const updated = (data?.length ?? 0) > 0
+  if (!updated) {
+    // Either the receipt was already complete (normal — a second poll) or the write matched
+    // nothing. The second case used to pass silently: an RLS-filtered UPDATE returns zero rows
+    // with a NULL error, so a missing policy looked exactly like success. Callers must decide;
+    // this logs loudly either way.
+    console.warn('[consent] completeReceipt matched no rows', { receiptId, outcome: input.outcome })
+  }
+  return { updated }
 }
 
 export async function getReceiptForUser(

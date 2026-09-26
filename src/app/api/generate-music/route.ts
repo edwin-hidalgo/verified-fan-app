@@ -22,7 +22,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient, getAuthUser } from '@/lib/supabase/server'
+import { createAdminClient, getAuthUser } from '@/lib/supabase/server'
 import { ensureAppUser } from '@/lib/supabase/ensure-user'
 import { checkPermission } from '@/lib/consent/permission'
 import { openReceipt, attachEngineJob, completeReceipt } from '@/lib/consent/receipts'
@@ -66,7 +66,9 @@ export async function POST(request: NextRequest) {
     }
 
     const finalDuration = Math.min(duration || 30, 190)
-    const supabase = await createServerSupabaseClient()
+    // The consent ledger must write regardless of RLS policies, so this is the real
+    // service-role client rather than the cookie-bound one.
+    const supabase = createAdminClient()
 
     // Receipts reference users(id), and a signed-in user has no app row until their first
     // publish — so make one now or the first generation fails its foreign key.
