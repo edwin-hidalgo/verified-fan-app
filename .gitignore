@@ -39,3 +39,31 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# --- spike/consented-adapters: training sidecar ---------------------------
+# ML repos are destroyed by a late gitignore. Extended BEFORE the first
+# training/ commit, per STUDIO-SPIKE-BRIEF §0. Stems are someone's unreleased
+# work; weights and generated audio are large and reproducible.
+training/.venv/
+training/venv/
+training/__pycache__/
+training/**/__pycache__/
+*.pyc
+*.safetensors
+*.ckpt
+*.pt
+*.bin
+*.npz
+training/models/
+training/checkpoints/
+training/stems/
+training/data/
+training/latents/
+training/outputs/
+training/*.wav
+training/**/*.wav
+training/*.mp3
+training/**/*.mp3
+training/*.flac
+training/**/*.flac
+training/.env
