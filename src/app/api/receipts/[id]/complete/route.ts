@@ -2,7 +2,8 @@
  * POST /api/receipts/[id]/complete
  * Finish a client-side (browser) generation's receipt.
  *
- * Request body: { "outcome": "succeeded" | "failed", "spec"?: {...}, "output_sha256"?: "...", "error"?: "..." }
+ * Request body: { "outcome": "succeeded" | "failed", "spec"?: {...}, "output_sha256"?: "...",
+ *                 "source_sha256"?: "...", "source_name"?: "...", "source_bytes"?: n, "error"?: "..." }
  * Response: { "receipt": { ... } }
  *
  * The palette engine runs entirely in the browser — the audio never reaches this server. What
@@ -94,6 +95,8 @@ export async function POST(
         spec: validation.spec,
         engine_version: PALETTE_ENGINE_VERSION,
         source_sha256: typeof body.source_sha256 === 'string' ? body.source_sha256 : null,
+        source_name: typeof body.source_name === 'string' ? body.source_name.slice(0, 260) : null,
+        source_bytes: Number.isFinite(body.source_bytes) ? body.source_bytes : null,
       },
     })
     // Never report success for a write that did not land. This is exactly how the RLS bug hid:

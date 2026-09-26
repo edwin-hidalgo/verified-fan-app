@@ -37,6 +37,9 @@ export interface PaletteResult {
   outputSha256: string
   /** sha256 of the source file, so a later claim about which recording was used is checkable. */
   sourceSha256: string
+  /** The file's own name. The hash proves WHICH bytes; this is how a person recognises them. */
+  sourceName: string
+  sourceBytes: number
   clusterCount: number
   voiceNames: string[]
 }
@@ -110,6 +113,8 @@ export async function runPalette(file: File, seconds = 12): Promise<PaletteResul
     spec: { songChoices: choices, songVoicesPlayed: played, songKit: kit, songTone: tone },
     outputSha256,
     sourceSha256,
+    sourceName: file.name,
+    sourceBytes: file.size,
     clusterCount: clusters.length,
     voiceNames: played.map((entry) => entry.played),
   }

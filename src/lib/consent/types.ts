@@ -82,7 +82,21 @@ export interface GrantWithStatus extends Grant {
  */
 export type AssetsUsed =
   | { kind: 'prompt_only'; model: string; inference: Record<string, unknown> }
-  | { kind: 'palette'; spec: unknown; engine_version: string; source_sha256?: string | null }
+  | {
+      kind: 'palette'
+      spec: unknown
+      engine_version: string
+      /** Which bytes were measured. */
+      source_sha256?: string | null
+      /**
+       * And what the person called them. The hash identifies the file to a machine; the name is
+       * how the person who chose it recognises their own receipt. Finding out which track had
+       * been used once took hashing 145 local files — the ledger should not be that opaque to
+       * its own owner.
+       */
+      source_name?: string | null
+      source_bytes?: number | null
+    }
   | {
       kind: 'ml_adapter'
       adapter_path: string

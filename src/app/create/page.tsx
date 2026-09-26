@@ -337,6 +337,8 @@ export default function CreatePage() {
           spec: result.spec,
           output_sha256: result.outputSha256,
           source_sha256: result.sourceSha256,
+          source_name: result.sourceName,
+          source_bytes: result.sourceBytes,
         }),
       })
       if (!done.ok) {
