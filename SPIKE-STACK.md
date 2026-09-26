@@ -93,9 +93,18 @@ Hugging Face** — terms must be accepted before download.
 Freesound. That is a **vendor provenance account, not evidence that every upstream artist
 opted in.** It satisfies "documented base"; it does not make the base "consented."
 
-### Memory — supported upstream; whether it fits this machine is UNMEASURED
+### Memory — MEASURED 2026-09-26: fits for `sm-music` at matched crop; default crop does not
 
-The training docs publish figures, **but for the CUDA trainer** — the table below is not a
+**Gate result (`training/runs/gate-2026-09-26.md`):** with the latent crop matched to the data
+(480 for 45 s files), gradient checkpointing on and `mx.compile` off, `sm-music` / `dora-rows` /
+rank 16 / batch 1 trained **300 steps in 399 s (1.27 s/step)** with no OOM, max RSS 1.93 GB,
+three 17.6 MB checkpoints, and the reloaded adapter changed a same-seed render (distance 0.892).
+The **same run at the default 1300 crop OOMed Metal at step 0** — so the pass is conditional on
+crop length, and `medium` remains unmeasured. Projection: ~42 min per 2000-step adapter; the
+three-size ladder in ~2–3 h, $0 cash. Re-measure at the crop real songs need before training on
+artist material.
+
+For context, the training docs publish figures, **but for the CUDA trainer** — the table below is not a
 benchmark of MLX training on a 16 GB M4, and an earlier draft of this document presented it
 as one:
 
@@ -324,7 +333,7 @@ used at all, use an owned or properly licensed audio fixture. **Pending Edwin's 
 
 ## Open questions this proposal does NOT answer ❓
 
-- Actual measured training memory and wall-clock on this machine under real batch sizes.
+- Training memory and wall-clock at the crop length **real songs** need (only 45 s / crop 480 is measured), and for `medium` at all.
 - Whether `dora-rows` at rank 16 is right for **music** specifically, as opposed to being
   the repo's general default.
 - Whether the medium variant trains on the `optimized/mlx` Apple Silicon path in practice —

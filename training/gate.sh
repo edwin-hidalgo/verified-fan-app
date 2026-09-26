@@ -18,13 +18,18 @@ export PATH="$HOME/.local/bin:$PATH"
 
 T="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MLX="$T/upstream/stable-audio-3/optimized/mlx"
-PY="$PY"   # the installer's venv; bare `uv run python` resolved a different env (no mlx) on 2026-09-26
+PY="$MLX/.venv/bin/python"   # the installer's venv; bare `uv run python` resolved a different env (no mlx) on 2026-09-26
 DATA="$T/data/plumbing"; LAT="$T/latents/plumbing"; OUT="$T/outputs/gate"
 RUNS="$T/runs"; RUN_NAME="gate-plumbing"
 STAMP="$(date +%Y-%m-%d)"; LOG="$RUNS/gate-$STAMP.md"
 mkdir -p "$DATA" "$LAT" "$OUT" "$RUNS"
 
 DIT=sm-music; DEC=same-s; RANK=16; LR=1e-4; STEPS=${STEPS:-300}; CKPT_EVERY=100
+# Memory levers (attempt 2, 2026-09-26): attempt 1 OOMed on Metal at step 0 with the
+# default 1300-latent crop on 486-latent (45s) files — 2.7x zero padding. Match the crop
+# to the data, checkpoint gradients, skip mx.compile. Set via env so the log shows them.
+CROP=${CROP:-480}; GRAD_CKPT=${GRAD_CKPT:-1}; COMPILE=${COMPILE:-0}
+TRAIN_EXTRA=(--latent-crop-length "$CROP"); [[ "$GRAD_CKPT" == 1 ]] && TRAIN_EXTRA+=(--grad-checkpoint); [[ "$COMPILE" == 0 ]] && TRAIN_EXTRA+=(--no-compile)
 SECONDS_PER_CLIP=${SECONDS_PER_CLIP:-45}   # sm-music crops to ~120s latents; 45s files pad, that's fine for plumbing
 
 # Fixed prompts + seeds → reproducible plumbing set. Content-only captions, no artist, no trigger token.
@@ -56,7 +61,8 @@ timed(){ # timed <label> <cmd...> : runs under /usr/bin/time -l, extracts RSS + 
   rss=$(awk '/maximum resident set size/{printf "%.2f", $1/1073741824}' "$tlog")
   real=$(awk '/[0-9.]+ real/{print $1}' "$tlog")
   printf -- "  - exit %s · wall %ss · **max RSS %s GB**\n  - swap after:  %s\n" "$rc" "${real:-$((SECONDS-t0))}" "${rss:-?}" "$(swap)" >> "$LOG"
-  grep -E "peak RAM|realtime|steps/s|it/s|loss|Error|error|Killed" "$tlog" | tail -6 | sed 's/^/  - `/; s/$/`/' >> "$LOG" || true
+  # tqdm rewrites one line with \r; keep only the last state of it plus real messages
+  tr '\r' '\n' < "$tlog" | grep -E "peak RAM|realtime|Done in|Error|error|Killed|Step [0-9]+, Epoch [0-9]+: +[0-9]+%.*it\]" | awk '/Step [0-9]+/{last=$0; next} {print} END{if(last) print last}' | tail -6 | cut -c1-200 | sed 's/^/  - `/; s/$/`/' >> "$LOG" || true
   cp "$tlog" "$OUT/$label.log"; return $rc
 }
 
@@ -74,8 +80,9 @@ step_encode(){ hdr "2. pre-encode whole files → latents ($DEC)"
   ( cd "$MLX" && timed "pre-encode" "$PY" scripts/pre_encode_mlx.py --audio-dir "$DATA" --output-dir "$LAT" --codec $DEC --overwrite )
   printf -- "\n%s latent files\n" "$(ls "$LAT"/*.npy 2>/dev/null | wc -l | tr -d ' ')" >> "$LOG"
 }
-step_train(){ hdr "3. brief train — $DIT · dora-rows · rank $RANK · lr $LR · $STEPS steps · batch 1"
-  ( cd "$MLX" && timed "train" "$PY" scripts/lora_train_mlx.py --dit $DIT --latents-dir "$LAT" --lr $LR --name "$RUN_NAME" --adapter-type dora-rows --rank $RANK --max-steps "$STEPS" --checkpoint-every $CKPT_EVERY --save-dir "$T/checkpoints" )
+step_train(){ hdr "3. brief train — $DIT · dora-rows · rank $RANK · lr $LR · $STEPS steps · batch 1 · crop $CROP · grad-ckpt $GRAD_CKPT · compile $COMPILE"
+  printf -- "- competing RSS at start: Chrome %s MB, VS Code %s MB, free %s\n" "$(ps -Ao rss=,comm= | grep -i "google chrome" | awk '{s+=$1} END{printf "%d", s/1024}')" "$(ps -Ao rss=,comm= | grep -i "visual studio" | awk '{s+=$1} END{printf "%d", s/1024}')" "$(memory_pressure 2>/dev/null | grep -oE "[0-9]+%" | head -1)" >> "$LOG"
+  ( cd "$MLX" && timed "train" "$PY" scripts/lora_train_mlx.py --dit $DIT --latents-dir "$LAT" --lr $LR --name "$RUN_NAME" --adapter-type dora-rows --rank $RANK --max-steps "$STEPS" --checkpoint-every $CKPT_EVERY --save-dir "$T/checkpoints" "${TRAIN_EXTRA[@]}" )
   local ck; ck=$(ls -t "$T"/checkpoints/"$RUN_NAME"/*/checkpoints/*.safetensors 2>/dev/null | head -1 || true)
   printf -- "\ncheckpoint: \`%s\` (%s)\n" "${ck:-NONE}" "$( [[ -n "$ck" ]] && du -h "$ck" | cut -f1 )" >> "$LOG"
 }
