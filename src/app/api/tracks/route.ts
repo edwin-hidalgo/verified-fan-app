@@ -8,6 +8,7 @@
  */
 
 import { createServerSupabaseClient, getAuthUser } from '@/lib/supabase/server'
+import { ensureAppUser, displayNameFor } from '@/lib/supabase/ensure-user'
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 
@@ -41,10 +42,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'You must be signed in to create a moment.' }, { status: 401 })
     }
 
-    const displayName =
-      (authUser.user_metadata?.display_name as string) ||
-      authUser.email?.split('@')[0] ||
-      'Creator'
+    const displayName = displayNameFor(authUser)
 
     // 2) Parse request — JSON (audio_url from generation) or multipart (audio_file upload).
     let audioFile: File | null = null
@@ -85,16 +83,8 @@ export async function POST(request: NextRequest) {
     const supabase = await createServerSupabaseClient()
 
     // 3) Ensure an app `users` row exists for this auth user (FK target for tracks.user_id).
-    const { error: userUpsertError } = await supabase.from('users').upsert(
-      {
-        id: authUser.id,
-        email: authUser.email,
-        display_name: displayName,
-      },
-      { onConflict: 'id' }
-    )
+    const { error: userUpsertError } = await ensureAppUser(supabase, authUser)
     if (userUpsertError) {
-      console.error('[tracks-api] User upsert error:', userUpsertError.message)
       return NextResponse.json({ error: 'Failed to prepare account' }, { status: 500 })
     }
 
