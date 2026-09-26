@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 const DURATION_OPTIONS = [
   { label: 'Snippet', seconds: 15 },
@@ -11,6 +11,26 @@ const DURATION_OPTIONS = [
 ]
 
 const QUICK_STYLES = ['ambient', 'lo-fi', 'cinematic', 'jazz', 'folk', 'dark']
+
+/** What /api/grants hands back: a grant plus its derived status. */
+interface GrantSummary {
+  id: string
+  grantor_display_name: string
+  is_test: boolean
+  status: 'active' | 'pending' | 'expired' | 'revoked'
+  terms_version: string
+  may_train: boolean
+  may_condition: boolean
+  may_invoke_style: boolean
+  may_distribute_commercially: boolean
+  use_tier: string
+  rate_instrument: string
+  revocable: boolean
+  revocation_notice_days: number
+  output_survival_rule: string
+  attribution_text: string | null
+  scope_specificity_text: string
+}
 
 interface GenerationState {
   description: string
@@ -26,6 +46,11 @@ interface GenerationState {
   momentDescription: string | null
   imageUrl: string | null
   suggestedStyle: string | null
+  /** Whose terms this generation runs under. Required — nothing generates ungated. */
+  grantId: string | null
+  /** The ledger row for this attempt, authorized or denied. */
+  receiptId: string | null
+  denialReason: string | null
 }
 
 interface RegistrationState {
@@ -52,6 +77,9 @@ export default function CreatePage() {
     momentDescription: null,
     imageUrl: null,
     suggestedStyle: null,
+    grantId: null,
+    receiptId: null,
+    denialReason: null,
   })
 
   const [regState, setRegState] = useState<RegistrationState>({
@@ -62,6 +90,31 @@ export default function CreatePage() {
   })
 
   const [audioPlayerKey, setAudioPlayerKey] = useState(0)
+  const [grants, setGrants] = useState<GrantSummary[]>([])
+  const [showTerms, setShowTerms] = useState(false)
+  const [receiptJson, setReceiptJson] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/grants')
+      .then((r) => (r.ok ? r.json() : { grants: [] }))
+      .then((d) => setGrants(d.grants || []))
+      .catch(() => setGrants([]))
+  }, [])
+
+  const chosenGrant = grants.find((g) => g.id === genState.grantId) || null
+
+  // Fetch the receipt behind whatever just happened — authorized or denied. Seeing the record
+  // is the point of having one.
+  const viewReceipt = async () => {
+    if (!genState.receiptId) return
+    if (receiptJson) {
+      setReceiptJson(null)
+      return
+    }
+    const res = await fetch(`/api/receipts/${genState.receiptId}`)
+    const data = await res.json().catch(() => null)
+    setReceiptJson(data ? JSON.stringify(data, null, 2) : 'Could not load receipt')
+  }
 
   // Publish the generated moment. Identity comes from the auth session (cookie),
   // so no user id is passed here — the /create route is gated by the proxy.
@@ -90,6 +143,7 @@ export default function CreatePage() {
             genre: genState.style,
             cover_image_url: regState.includeCoverArt ? genState.imageUrl : null,
             moment_description: genState.momentDescription,
+            receipt_id: genState.receiptId,
           },
         }),
       })
@@ -214,8 +268,19 @@ export default function CreatePage() {
       setGenState((prev) => ({ ...prev, error: 'Please select or enter a music style' }))
       return
     }
+    if (!genState.grantId) {
+      setGenState((prev) => ({ ...prev, error: 'Choose whose terms this runs under' }))
+      return
+    }
 
-    setGenState((prev) => ({ ...prev, isGenerating: true, error: null }))
+    setReceiptJson(null)
+    setGenState((prev) => ({
+      ...prev,
+      isGenerating: true,
+      error: null,
+      receiptId: null,
+      denialReason: null,
+    }))
 
     try {
       const createResponse = await fetch('/api/generate-music', {
@@ -225,15 +290,31 @@ export default function CreatePage() {
           description: genState.description,
           style: genState.style,
           duration: genState.duration,
+          grant_id: genState.grantId,
+          use_tier: 'personal',
         }),
       })
 
       if (!createResponse.ok) {
-        throw new Error('Failed to start music generation')
+        const body = await createResponse.json().catch(() => ({}))
+        if (createResponse.status === 401) {
+          router.push('/login?redirect=/create')
+          return
+        }
+        // 403 is the permission check refusing. It is not an error in the app — it is the
+        // architecture working, and it comes with a receipt.
+        setGenState((prev) => ({
+          ...prev,
+          isGenerating: false,
+          error: body.error || 'Failed to start music generation',
+          receiptId: body.receiptId || null,
+          denialReason: body.denialReason || null,
+        }))
+        return
       }
 
-      const { predictionId } = await createResponse.json()
-      setGenState((prev) => ({ ...prev, predictionId }))
+      const { predictionId, receiptId } = await createResponse.json()
+      setGenState((prev) => ({ ...prev, predictionId, receiptId }))
 
       let isComplete = false
       let audioUrl: string | null = null
@@ -250,6 +331,9 @@ export default function CreatePage() {
         }
 
         const statusData = await statusResponse.json()
+        if (statusData.receiptId) {
+          setGenState((prev) => ({ ...prev, receiptId: statusData.receiptId }))
+        }
         if (statusData.status === 'succeeded') {
           audioUrl = statusData.audioUrl
           isComplete = true
@@ -290,6 +374,9 @@ export default function CreatePage() {
       momentDescription: null,
       imageUrl: null,
       suggestedStyle: null,
+      grantId: genState.grantId, // keep the chosen terms; only the moment resets
+      receiptId: null,
+      denialReason: null,
     })
     setRegState({ title: '', isRegistering: false, error: null, includeCoverArt: false })
   }
@@ -429,6 +516,88 @@ export default function CreatePage() {
               </div>
             </div>
 
+            {/* Whose terms — the permission check happens against whatever is chosen here */}
+            <div>
+              <label className="block text-sm font-semibold mb-3">Whose terms?</label>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {grants.map((g) => {
+                  const selected = genState.grantId === g.id
+                  const suffix =
+                    g.status !== 'active' ? ` · ${g.status}` : g.is_test ? ' · TEST' : ''
+                  return (
+                    <button
+                      key={g.id}
+                      onClick={() =>
+                        setGenState((prev) => ({
+                          ...prev,
+                          grantId: g.id,
+                          error: null,
+                          receiptId: null,
+                          denialReason: null,
+                        }))
+                      }
+                      disabled={genState.isGenerating}
+                      className={`px-3 py-2 rounded-full text-xs font-semibold transition ${
+                        selected
+                          ? 'bg-[#1b1b1b] text-[#fdfff8] hover:opacity-80'
+                          : 'bg-[#fdfff8] text-[#1b1b1b80] border border-[#1b1b1b] hover:opacity-80'
+                      } disabled:opacity-50`}
+                    >
+                      {g.grantor_display_name}
+                      {suffix}
+                    </button>
+                  )
+                })}
+                {grants.length === 0 && (
+                  <p className="text-xs text-[#484947]">
+                    No grants yet. Run the Track A seed to add the two test grants.
+                  </p>
+                )}
+              </div>
+
+              {chosenGrant && (
+                <>
+                  <button
+                    onClick={() => setShowTerms((v) => !v)}
+                    className="text-xs font-semibold underline text-[#1b1b1b] hover:opacity-70"
+                  >
+                    {showTerms ? 'Hide terms' : 'See terms'}
+                  </button>
+
+                  {showTerms && (
+                    <div className="mt-3 p-4 bg-[#fdfff8] border border-[#1b1b1b] rounded-lg text-xs space-y-2">
+                      <p className="font-semibold">
+                        {chosenGrant.grantor_display_name} · v{chosenGrant.terms_version} ·{' '}
+                        {chosenGrant.status}
+                      </p>
+                      <p className="text-[#484947]">{chosenGrant.scope_specificity_text}</p>
+                      <ul className="space-y-1">
+                        <li>{chosenGrant.may_train ? '✓' : '✕'} may train a model</li>
+                        <li>{chosenGrant.may_condition ? '✓' : '✕'} may condition on a recording</li>
+                        <li>{chosenGrant.may_invoke_style ? '✓' : '✕'} may invoke the style</li>
+                        <li>
+                          {chosenGrant.may_distribute_commercially ? '✓' : '✕'} may distribute
+                          commercially
+                        </li>
+                      </ul>
+                      <p>
+                        Use tier: {chosenGrant.use_tier} · Rate: {chosenGrant.rate_instrument}
+                      </p>
+                      <p>
+                        {chosenGrant.revocable
+                          ? `Revocable, ${chosenGrant.revocation_notice_days} days notice`
+                          : 'Not revocable'}{' '}
+                        · Already-made outputs: {chosenGrant.output_survival_rule.replace(/_/g, ' ')}
+                      </p>
+                      {chosenGrant.attribution_text && (
+                        <p className="text-[#484947]">Credit: {chosenGrant.attribution_text}</p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
             {/* Duration Selector */}
             <div>
               <label className="block text-sm font-semibold mb-3">Duration:</label>
@@ -451,14 +620,37 @@ export default function CreatePage() {
             </div>
 
             {genState.error && (
-              <div className="bg-[#ff2e00]/10 border border-[#ff2e00] rounded-lg p-4 text-[#ff2e00] text-sm">
-                {genState.error}
+              <div className="bg-[#ff2e00]/10 border border-[#ff2e00] rounded-lg p-4 text-[#ff2e00] text-sm space-y-2">
+                <p>{genState.error}</p>
+                {genState.receiptId && (
+                  <p className="text-xs">
+                    {genState.denialReason && (
+                      <span className="font-semibold">
+                        Refused: {genState.denialReason.replace(/_/g, ' ')} ·{' '}
+                      </span>
+                    )}
+                    Receipt {genState.receiptId.slice(0, 8)}{' '}
+                    <button onClick={viewReceipt} className="underline hover:opacity-70">
+                      {receiptJson ? 'hide' : 'view'}
+                    </button>
+                  </p>
+                )}
+                {receiptJson && (
+                  <pre className="text-[10px] leading-tight text-[#1b1b1b] bg-[#fdfff8] border border-[#1b1b1b] rounded p-3 overflow-x-auto max-h-64">
+                    {receiptJson}
+                  </pre>
+                )}
               </div>
             )}
 
             <button
               onClick={handleGenerateMusic}
-              disabled={!genState.description.trim() || !genState.style.trim() || genState.isGenerating}
+              disabled={
+                !genState.description.trim() ||
+                !genState.style.trim() ||
+                !genState.grantId ||
+                genState.isGenerating
+              }
               className="w-full py-4 bg-[#1b1b1b] text-[#fdfff8] font-semibold rounded-lg hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {genState.isGenerating ? (
@@ -478,6 +670,31 @@ export default function CreatePage() {
               <h2 className="text-2xl font-bold">Your Moment is Ready</h2>
               <audio key={audioPlayerKey} controls src={genState.generatedAudioUrl} className="w-full" />
               <p className="text-sm text-[#1b1b1b80]">AI-generated audio moment from your description</p>
+              {chosenGrant && (
+                <div className="text-xs text-[#484947] space-y-1 border-t border-[#1b1b1b] pt-3">
+                  <p>
+                    Generated under{' '}
+                    <span className="font-semibold text-[#1b1b1b]">
+                      {chosenGrant.grantor_display_name}
+                    </span>
+                    ’s terms (v{chosenGrant.terms_version})
+                    {genState.receiptId && (
+                      <>
+                        {' '}· receipt {genState.receiptId.slice(0, 8)}{' '}
+                        <button onClick={viewReceipt} className="underline hover:opacity-70">
+                          {receiptJson ? 'hide' : 'view'}
+                        </button>
+                      </>
+                    )}
+                  </p>
+                  {chosenGrant.attribution_text && <p>{chosenGrant.attribution_text}</p>}
+                  {receiptJson && (
+                    <pre className="text-[10px] leading-tight text-[#1b1b1b] bg-[#fdfff8] border border-[#1b1b1b] rounded p-3 overflow-x-auto max-h-64">
+                      {receiptJson}
+                    </pre>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="bg-[#fdfff8] border border-[#1b1b1b] rounded-lg p-8 space-y-6">
