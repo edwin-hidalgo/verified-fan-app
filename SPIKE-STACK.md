@@ -1,6 +1,6 @@
 # Spike stack proposal — for approval
 
-_Written 2026-09-23 · Status: **awaiting Edwin's approval** · Gates: no model code until approved_
+_Written 2026-09-23, revised 2026-09-26 · Status: **awaiting Edwin's approval** · Gates: no model code until approved_
 
 `EKOS-SPIKE-PLAN.md` requires that the concrete stack be approved before any model code
 is written. This is that proposal. It also records a change of shape Edwin asked for: the
@@ -90,9 +90,11 @@ not trusted — batch size and sequence length move this.
 |---|---|---|
 | Base | `small-base` first, `medium-base` for quality | Training uses the **BASE** checkpoint (`rectified_flow`), *not* the shipped ARC inference weights |
 | Runtime | MLX on the M4 | Apple Silicon only, Python 3.10+. Local so stems never leave the machine |
-| Adapter | `dora-rows`, rank **16** | The documented default. *An initial candidate, not a proven optimum.* Nine types exist; `lora-xs` is the memory fallback |
-| Steps / LR | 1000–2000 @ `1e-4` | Docs' quick-start baseline; *"LoRA behavior varies a lot with dataset size, style, and hardware"* |
-| Data | ~20–50 clips minimum, each with a matching text description | SA3 is text-conditioned — **captioning is real work, budget for it** |
+| Adapter | `dora-rows`, rank **16, held fixed across all three data conditions** | DoRA ≥ LoRA at equal rank. Rank is *not tuned* because the data-floor experiment has one independent variable — how much audio — and moving rank at the same time confounds it. One rank-32 comparison on the full-catalogue condition only, if days remain. Do **not** use `lora-xs`: it trades capacity for memory we do not need |
+| Steps | **checkpoint every 250 steps to 2000; select by evaluation** | A step count is a guess; a checkpoint series is a measurement, costs almost nothing, and yields the curve where artist-likeness plateaus and memorization begins — which *is* questions 1 and 5 |
+| LR | `1e-4` | The least informative variable; not worth spike days |
+| Clip length | **a first-class variable — state it and hold it consistent** | Musical style lives in phrases; likely matters more than rank. Measure memory at batch size 1 before raising it |
+| Data | ~20–50 clips minimum at **full sample rate**, each with a matching text description | SA3 is text-conditioned — **captioning is real work, budget for it.** See "Captions" below for what they must and must not say |
 
 **Pipeline:** `pre_encode_mlx.py` (audio → latents + JSON sidecar carrying duration,
 padding mask, tags) → `lora_train_mlx.py` → `sa3 --lora <ckpt>.safetensors`. Adapters load
@@ -110,10 +112,15 @@ Edwin's requirement: it must work on **real music** before any artist is approac
 - ❌ **Jamendo — rejected.** Jamendo is currently **suing Suno** over AI training on its
   CC-licensed catalogue. Sourcing a consent-first demo from the plaintiff in the defining
   case on this exact question is indefensible whatever the licence text permits.
-- ✅ **Free Music Archive, commercially-usable subset.** 100k+ CC tracks with per-file
-  licences and a published configuration restricted to commercially-usable data; a 16 kHz
-  packaging exists, matching SA3's own sample rate. Select **one artist with enough
-  catalogue** to run all three data sizes.
+- ✅ **Free Music Archive, commercially-usable subset — at full sample rate.** 100k+ CC
+  tracks with per-file licences and a published configuration restricted to
+  commercially-usable data. ⚠️ A 16 kHz packaging of FMA exists; **do not use it.** SA3
+  generates stereo at 44.1 kHz, and training on band-limited audio would teach the adapter
+  to produce capped, dull output from a base fully capable of full-rate sound. (An earlier
+  draft of this document got this backwards.) Select **one artist with enough catalogue**
+  that the 1 / few / full ladder actually separates, and **enough range** that a negative
+  result is about the method rather than the artist — a sparse solo act does not contain
+  the variety the adapter is being asked to learn.
 - ✅ **Edwin's own ekos catalogue as run zero.** He owns the Stable Audio 2.5 outputs under
   the licence above, so the first end-to-end run carries zero licensing exposure. This
   tests plumbing, **not** artistic quality — and must be reported that way.
@@ -130,6 +137,94 @@ The three-size experiment — one song / a few / the artist's full available cat
 three **independently** trained adapters — answers the data floor directly, assessing
 song-likeness separately from artist-likeness. One artist cannot establish a universal
 minimum, and the writeup must not claim otherwise.
+
+## Experiment design — the parts that decide whether the result means anything
+
+### Captions: describe the music, never name the artist, no trigger token
+
+Captions are half the training signal — the adapter learns to associate their words with
+the sound. The common practice for style adapters is a **trigger token**: a rare word in
+every caption that the style binds to, which you must then type to get the style. **This
+proposal rejects that**, for a reason that is about the thesis rather than about ML.
+
+A trigger token moves invocation into the prompt: whoever types the word invokes the
+artist. That is exactly the *"statistical guessing"* this architecture exists to replace.
+The brief's requirement is that "can this artist be invoked" is *"answered by a lookup
+against a terms record, not inferred by the model."* With **content-only captions**
+(`"warm jazz trio, upright bass, brushed drums, 92 bpm"`) the artist's identity lives in the
+**grant record** and their sound lives in the **weights** — and the only way to invoke them
+through the product is for the server to load their adapter after a permission check. The
+architecture enforces the policy instead of depending on it.
+
+What follows from that, dimension by dimension:
+
+| | Trigger token | Content-only (proposed) |
+|---|---|---|
+| Where control lives | the prompt (user-side) | which adapter is loaded (server-side) |
+| What the receipt can claim | "a prompt contained this token" — evidence of a request | "adapter X, hash Y, strength Z was loaded" — a fact about execution |
+| Revocation | depends partly on a "secret" word that appears in every log | stop loading the file; there is no word to leak |
+| Artist's name in the model | becomes a name-like string; drags in AB 2602 / ELVIS Act territory | never enters training text at all |
+| Music: style from small data | all the artist's information squeezes through one embedding; tends to bind to incidental features (room, mastering, one tempo) — *song*-likeness masquerading as *artist*-likeness | shifts the whole distribution; character shows across many prompts, which is what artist-likeness means |
+| Music: selectivity | base stays clean for prompts without the token | adapter is always on; managed by per-adapter **strength** (0–10) and by unloading, not by the prompt |
+| The data-floor measurement | partly measures "how well did one embedding train" | measures "how much audio until the artist is recognizable" — the actual question |
+
+Honest caveats: style leakage happens either way (the brief already says style selection
+is *"the platform's disclosed routing decision, not proof the user intended a particular
+artist"*), and this recommendation comes from the requirements rather than from a published
+comparison on music adapters. So: **run one trigger-token A/B, same data, full-catalogue
+condition only.** One extra run, and the highest-information comparison available.
+
+### The control that must run first
+
+**Generate from the unmodified base model with the artist's name in the prompt, before any
+adapter exists.** If the base already leans toward the artist from the name alone, every
+adapter result is confounded — "adapter plus whatever the base already knew" would be
+credited to the adapter. One afternoon, and it protects every quality claim afterward.
+Log the observation carefully: a behavioural response is **not** proof of training data.
+
+### Prompt matrix
+
+| | content-only prompt | the artist's name | a *different* artist's name |
+|---|---|---|---|
+| base, no adapter | control | **the control above** | does *any* name do this? |
+| 1 song | ✅ | ✅ | — |
+| few songs | ✅ | ✅ | — |
+| full catalogue | ✅ | ✅ | ✅ |
+
+Two fixed seeds per cell. The third column separates "a name did something" from "*this*
+name did something." **Commit the prompts and seeds to the repo, dated, before the first
+training run** — post-hoc selection of flattering prompts is invisible and irresistible.
+
+### Evaluation
+
+- **Blind, mandatory.** Randomised, labels revealed after. The everything-hums v3.71
+  direction change came from a blind test where real recordings beat synthesised voices;
+  same discipline here.
+- **Define "recognizable" before listening:** reference track, then two candidates, forced
+  choice — "which is by the same artist?" A number, not an impression.
+- **Nest the data ladder** (1 ⊂ few ⊂ full) so it is a pure quantity ladder, and **hold
+  1–2 songs out of all three conditions** so unseen material can separate "sounds like the
+  artist" from "replayed the training set."
+- **Baseline the memorization detector on the unmodified base** before judging any adapter;
+  "does it regurgitate" is meaningless without knowing what normal similarity looks like.
+- **2–3 paid blind listeners**, working musicians. One artist's verdict is n=1; three
+  independent blind verdicts turn an anecdote into a finding, cheaply.
+- **Light mastering of outputs** is a near-free lever on a *perceptual* bar, and probably
+  moves "plausibly a product" more than rank 16 vs 32 does. Report raw and mastered
+  separately.
+
+### Budget, reshaped
+
+The $100 was sized for GPU time that local training does not need. Redirect: **blind
+listeners inside the spike**; an **artist honorarium after it** — the plan assumed
+participation without a fee, and paying for their time gets better stems, a more careful
+listen, and a relationship rather than a favour. Best dollar in the project. The $60 GPU
+line stays as the Replicate fallback reserve.
+
+### Track A ↔ Track B seam
+
+Track A's receipt schema carries **adapter file + hash + strength from day one**, empty
+until Track B lands, so nothing is reworked when it does.
 
 ## Track A — consent architecture, no training, no artist, ~$0
 
@@ -165,7 +260,9 @@ re-derived. A receipt that cannot reproduce itself is not a receipt.
 - Actual measured training memory and wall-clock on this machine under real batch sizes.
 - Whether `dora-rows` at rank 16 is right for **music** specifically, as opposed to being
   the repo's general default.
-- Whether SA3's 16 kHz output is good enough for the "plausibly a product" bar.
+- Whether the medium variant trains on the `optimized/mlx` Apple Silicon path in practice —
+  one third-party source says medium "needs a CUDA GPU", which likely describes the
+  reference implementation, but it is settled by running it on day 1, not by reading.
 - How to caption clips at scale, and how much caption quality moves the result.
 - Whether CC-BY training is defensible in practice while Jamendo v. Suno is live.
 - Whether one FMA artist's catalogue is large enough for the "full catalogue" condition.
