@@ -18,6 +18,7 @@ export PATH="$HOME/.local/bin:$PATH"
 
 T="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MLX="$T/upstream/stable-audio-3/optimized/mlx"
+PY="$PY"   # the installer's venv; bare `uv run python` resolved a different env (no mlx) on 2026-09-26
 DATA="$T/data/plumbing"; LAT="$T/latents/plumbing"; OUT="$T/outputs/gate"
 RUNS="$T/runs"; RUN_NAME="gate-plumbing"
 STAMP="$(date +%Y-%m-%d)"; LOG="$RUNS/gate-$STAMP.md"
@@ -70,11 +71,11 @@ step_dataset(){ hdr "1. plumbing dataset (base model generates its own; owned ou
   printf -- "\n%d files × %ss in \`data/plumbing\` (%s)\n" "$n" "$SECONDS_PER_CLIP" "$(du -sh "$DATA" | cut -f1)" >> "$LOG"
 }
 step_encode(){ hdr "2. pre-encode whole files → latents ($DEC)"
-  ( cd "$MLX" && timed "pre-encode" uv run python scripts/pre_encode_mlx.py --audio-dir "$DATA" --output-dir "$LAT" --codec $DEC --overwrite )
+  ( cd "$MLX" && timed "pre-encode" "$PY" scripts/pre_encode_mlx.py --audio-dir "$DATA" --output-dir "$LAT" --codec $DEC --overwrite )
   printf -- "\n%s latent files\n" "$(ls "$LAT"/*.npy 2>/dev/null | wc -l | tr -d ' ')" >> "$LOG"
 }
 step_train(){ hdr "3. brief train — $DIT · dora-rows · rank $RANK · lr $LR · $STEPS steps · batch 1"
-  ( cd "$MLX" && timed "train" uv run python scripts/lora_train_mlx.py --dit $DIT --latents-dir "$LAT" --lr $LR --name "$RUN_NAME" --adapter-type dora-rows --rank $RANK --max-steps "$STEPS" --checkpoint-every $CKPT_EVERY --save-dir "$T/checkpoints" )
+  ( cd "$MLX" && timed "train" "$PY" scripts/lora_train_mlx.py --dit $DIT --latents-dir "$LAT" --lr $LR --name "$RUN_NAME" --adapter-type dora-rows --rank $RANK --max-steps "$STEPS" --checkpoint-every $CKPT_EVERY --save-dir "$T/checkpoints" )
   local ck; ck=$(ls -t "$T"/checkpoints/"$RUN_NAME"/*/checkpoints/*.safetensors 2>/dev/null | head -1 || true)
   printf -- "\ncheckpoint: \`%s\` (%s)\n" "${ck:-NONE}" "$( [[ -n "$ck" ]] && du -h "$ck" | cut -f1 )" >> "$LOG"
 }
@@ -95,7 +96,7 @@ print(f"\nbase vs adapter rendered-waveform distance (same seed): **{math.sqrt(n
 PY
 }
 
-{ printf "# Feasibility gate — %s\n\n" "$STAMP"; printf -- "- machine: %s, %s GB, macOS %s\n- upstream: %s\n- python: %s\n- swap at start: %s\n" "$(sysctl -n machdep.cpu.brand_string)" "$(( $(sysctl -n hw.memsize)/1073741824 ))" "$(sw_vers -productVersion)" "$(git -C "$MLX" rev-parse --short HEAD)" "$("$MLX/.venv/bin/python" --version)" "$(swap)"; } >> "$LOG"
+{ printf "# Feasibility gate — %s\n\n" "$STAMP"; printf -- "- machine: %s, %s GB, macOS %s\n- upstream: %s\n- python: %s\n- swap at start: %s\n" "$(sysctl -n machdep.cpu.brand_string)" "$(( $(sysctl -n hw.memsize)/1073741824 ))" "$(sw_vers -productVersion)" "$(git -C "$MLX" rev-parse --short HEAD)" "$("$PY" --version)" "$(swap)"; } >> "$LOG"
 case "${1:-all}" in
   dataset) step_dataset ;; encode) step_encode ;; train) step_train ;; infer) step_infer ;;
   all) step_dataset; step_encode; step_train; step_infer ;;

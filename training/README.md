@@ -39,6 +39,14 @@ macOS 27 — at a throughput that leaves the 14-day window usable?
 past the window, the gate is **failed** and that is the finding. Nobody has been asked for
 files. Report, do not tune.
 
+## Trap: do not use `uv run python` for the scripts
+
+Upstream's README says `uv run python scripts/…`. Its own `./sa3` wrapper does **not** do
+that — it execs `.venv/bin/python` directly, and its comment explains why: `uv run` walks up
+the tree and picks a stray `.venv` at the repo root, which has no `mlx`. Measured 2026-09-26:
+pre-encode failed with `ModuleNotFoundError: No module named 'mlx'` that way. `gate.sh` uses
+`$MLX/.venv/bin/python` for every script.
+
 ## Conventions inherited from upstream (`TRAINING_CONVENTIONS.md`)
 
 - Pre-encode takes **whole files** up to 600 s, 44.1 kHz stereo (mono is channel-doubled);
