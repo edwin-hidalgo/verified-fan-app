@@ -1,4 +1,4 @@
-import { GET_WORLD_APP_URL, OPEN_IN_WORLD_APP_URL } from '@/lib/demo'
+import { DEMO_MODE, GET_WORLD_APP_URL, OPEN_IN_WORLD_APP_URL } from '@/lib/demo'
 
 type Tone = 'light' | 'dark'
 
@@ -55,7 +55,7 @@ export function WorldAppNote({ tone = 'light', action }: { tone?: Tone; action: 
           Get World App
         </a>
       </div>
-      <p className={muted[tone]}>You can still walk through the demo here in your browser.</p>
+      {DEMO_MODE && <p className={muted[tone]}>You can still walk through the demo here in your browser.</p>}
     </div>
   )
 }

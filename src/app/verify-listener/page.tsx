@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { WorldAppNote } from '@/components/DemoBanner'
+import { DEMO_MODE } from '@/lib/demo'
 
 export default function VerifyListenerPage() {
   const router = useRouter()
@@ -171,9 +172,11 @@ export default function VerifyListenerPage() {
         {outsideWorldApp && (
           <div className="w-full space-y-3">
             <WorldAppNote action="Listener verification" />
-            <Link href="/create" className="inline-block text-sm font-semibold underline underline-offset-2 hover:opacity-70">
-              Try the create demo in your browser →
-            </Link>
+            {DEMO_MODE && (
+              <Link href="/create" className="inline-block text-sm font-semibold underline underline-offset-2 hover:opacity-70">
+                Try the create demo in your browser →
+              </Link>
+            )}
           </div>
         )}
 

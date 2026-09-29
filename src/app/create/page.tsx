@@ -1,12 +1,14 @@
 'use client'
 
-import { useAuthedUser } from '@/lib/hooks/useAuthedUser'
+import { useAuthedUser, useRequireAuth } from '@/lib/hooks/useAuthedUser'
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { MiniKit } from '@worldcoin/minikit-js'
 import { DemoBanner, WorldAppNote } from '@/components/DemoBanner'
 import { ReplayRecordCard } from '@/components/ReplayRecordCard'
 import {
   DEFAULT_REPLAY,
+  DEMO_MODE,
   demoPause,
   formatReplayDate,
   pickReplay,
@@ -61,9 +63,12 @@ interface RegistrationState {
   needsWorldApp: boolean
 }
 
+// Demo mode lets anyone walk the flow; live mode keeps the original sign-in redirect.
+const useGate = DEMO_MODE ? useAuthedUser : useRequireAuth
+
 export default function CreatePage() {
-  // Demo mode: anyone can walk through the flow, so there is no sign-in redirect here.
-  const { user, isLoading } = useAuthedUser()
+  const router = useRouter()
+  const { user, isLoading } = useGate()
 
   const [genState, setGenState] = useState<GenerationState>({
     description: '',
@@ -102,9 +107,9 @@ export default function CreatePage() {
 
   const [audioPlayerKey, setAudioPlayerKey] = useState(0)
 
-  // Demo mode: registration is paused, so the flow ends on the replay's real registration.
-  // Nothing is sent: the original upload + IPFS + Story call lives in git history (281c6b4).
-  const proceedWithRegistration = async () => {
+  // Demo mode: registration is paused, so the flow ends on the replay's real registration and
+  // nothing is sent. Live mode: the original publish + IPFS + Story registration.
+  const proceedWithRegistration = async (userId?: string) => {
     if (!genState.generatedAudioUrl) {
       setRegState((prev) => ({
         ...prev,
@@ -127,13 +132,64 @@ export default function CreatePage() {
       error: null,
     }))
 
-    await demoPause(1200)
-    setRegState((prev) => ({ ...prev, isRegistering: false, demoComplete: true }))
+    if (DEMO_MODE) {
+      await demoPause(1200)
+      setRegState((prev) => ({ ...prev, isRegistering: false, demoComplete: true }))
+      return
+    }
+
+    try {
+      const response = await fetch('/api/tracks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId ?? '',
+        },
+        body: JSON.stringify({
+          audio_url: genState.generatedAudioUrl,
+          metadata: {
+            title: regState.title,
+            ai_origin: 'ai_generated',
+            ai_training_allowed: regState.aiTrainingAllowed,
+            ai_training_price_usd: regState.aiTrainingPrice,
+            sync_allowed: regState.syncAllowed,
+            sync_price_usd: regState.syncPrice,
+            commercial_use_allowed: regState.commercialUseAllowed,
+            commercial_use_revenue_share_pct: regState.commercialUseRevShare,
+            cover_image_url: regState.includeCoverArt ? genState.imageUrl : null,
+            moment_description: genState.momentDescription,
+          },
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Registration failed')
+      }
+
+      const result = await response.json()
+      router.push(`/track/${result.trackId}`)
+    } catch (error) {
+      console.error('Registration error:', error)
+      setRegState((prev) => ({
+        ...prev,
+        isRegistering: false,
+        error: error instanceof Error ? error.message : 'An error occurred',
+      }))
+    }
   }
+
 
   // Handle World ID verification for seamless registration flow
   const handleVerifyForRegistration = async () => {
     try {
+      if (!MiniKit.isInstalled() && !DEMO_MODE) {
+        setRegState((prev) => ({
+          ...prev,
+          error: 'World App not detected. Please open this app in World App.',
+        }))
+        return
+      }
       if (!MiniKit.isInstalled()) {
         // Outside World App there is no World ID. Explain that, then finish the demo anyway.
         if (!regState.title.trim()) {
@@ -209,7 +265,7 @@ export default function CreatePage() {
       document.cookie = `user_data=${encodeURIComponent(JSON.stringify(userData))}; path=/; max-age=${7 * 24 * 60 * 60}`
 
       // Proceed immediately with registration using the verified data
-      await proceedWithRegistration()
+      await proceedWithRegistration(verifyData.userId)
     } catch (error) {
       console.error('Verification error:', error)
       setRegState((prev) => ({
@@ -281,7 +337,7 @@ export default function CreatePage() {
     }))
 
     try {
-      // Resize image — it stays in the browser as a preview; nothing is uploaded
+      // Resize image (demo mode: it stays in the browser as a preview; nothing is uploaded)
       const resizedBase64 = await resizeImage(file)
 
       // Show preview
@@ -290,20 +346,51 @@ export default function CreatePage() {
         imagePreviewUrl: resizedBase64,
       }))
 
-      // Demo mode: photo analysis (Claude) is paused. Pre-fill with the description ekos wrote
-      // for a DIFFERENT photo during a real run, and say so right under the box.
-      await demoPause(900)
-      const example = DEFAULT_REPLAY
+      if (DEMO_MODE) {
+        // Demo mode: photo analysis (Claude) is paused. Pre-fill with the description ekos wrote
+        // for a DIFFERENT photo during a real run, and say so right under the box.
+        await demoPause(900)
+        const example = DEFAULT_REPLAY
 
-      setGenState((prev) => ({
-        ...prev,
-        description: example.photoDescription || '',
-        style: example.style,
-        momentDescription: example.photoDescription,
-        suggestedStyle: example.style,
-        exampleReplay: example,
-        isDescribing: false,
-      }))
+        setGenState((prev) => ({
+          ...prev,
+          description: example.photoDescription || '',
+          style: example.style,
+          momentDescription: example.photoDescription,
+          suggestedStyle: example.style,
+          exampleReplay: example,
+          isDescribing: false,
+        }))
+      } else {
+        const base64Data = resizedBase64.split(',')[1] // Remove data:image/jpeg;base64, prefix
+
+        // Call describe-image API
+        const response = await fetch('/api/describe-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image: base64Data,
+            mimeType: file.type || 'image/jpeg',
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to analyze image')
+        }
+
+        const { musicDescription, momentDescription, suggestedStyle, imageUrl } = await response.json()
+
+        setGenState((prev) => ({
+          ...prev,
+          description: musicDescription,
+          style: suggestedStyle,
+          momentDescription,
+          imageUrl,
+          suggestedStyle,
+          isDescribing: false,
+        }))
+      }
 
       // Auto-enable cover art toggle if image was uploaded
       setRegState((prev) => ({
@@ -332,6 +419,11 @@ export default function CreatePage() {
     )
   }
 
+  // Live mode keeps the original behaviour: signed-out visitors are redirected home.
+  if (!DEMO_MODE && !user) {
+    return null
+  }
+
   const handleGenerateMusic = async () => {
     if (!genState.style.trim()) {
       setGenState((prev) => ({
@@ -348,22 +440,80 @@ export default function CreatePage() {
     }))
 
     try {
-      // Demo mode: music generation (Replicate) is paused. Walk through the real flow's stages,
-      // clearly labelled, then play back a real moment made in the closest style.
-      for (const stage of ['Demo: reading your description…', 'Demo: composing…', 'Demo: finding a real moment in your style…']) {
-        setGenState((prev) => ({ ...prev, demoStage: stage }))
-        await demoPause(900)
-      }
-      const { replay, matched } = pickReplay(genState.style)
+      if (DEMO_MODE) {
+        // Demo mode: music generation (Replicate) is paused. Walk through the real flow's stages,
+        // clearly labelled, then play back a real moment made in the closest style.
+        for (const stage of ['Demo: reading your description…', 'Demo: composing…', 'Demo: finding a real moment in your style…']) {
+          setGenState((prev) => ({ ...prev, demoStage: stage }))
+          await demoPause(900)
+        }
+        const { replay, matched } = pickReplay(genState.style)
 
-      setGenState((prev) => ({
-        ...prev,
-        generatedAudioUrl: replay.audioUrl,
-        replay,
-        replayMatched: matched,
-        demoStage: null,
-        isGenerating: false,
-      }))
+        setGenState((prev) => ({
+          ...prev,
+          generatedAudioUrl: replay.audioUrl,
+          replay,
+          replayMatched: matched,
+          demoStage: null,
+          isGenerating: false,
+        }))
+      } else {
+        // Create prediction
+        const createResponse = await fetch('/api/generate-music', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            description: genState.description,
+            style: genState.style,
+            duration: genState.duration,
+          }),
+        })
+
+        if (!createResponse.ok) {
+          throw new Error('Failed to start music generation')
+        }
+
+        const { predictionId } = await createResponse.json()
+        setGenState((prev) => ({ ...prev, predictionId }))
+
+        // Poll for status
+        let isComplete = false
+        let audioUrl: string | null = null
+        let pollCount = 0
+        const maxPolls = 100 // ~300 seconds max wait
+
+        while (!isComplete && pollCount < maxPolls) {
+          await new Promise((resolve) => setTimeout(resolve, 3000)) // Poll every 3s
+          pollCount++
+
+          const statusResponse = await fetch(
+            `/api/generate-music/status?id=${predictionId}`
+          )
+
+          if (!statusResponse.ok) {
+            throw new Error('Failed to check generation status')
+          }
+
+          const statusData = await statusResponse.json()
+
+          if (statusData.status === 'succeeded') {
+            audioUrl = statusData.audioUrl
+            isComplete = true
+          } else if (statusData.status === 'failed') {
+            throw new Error(statusData.error || 'Music generation failed')
+          }
+        }
+
+        if (!isComplete) {
+          throw new Error('Music generation timed out')
+        }
+
+        setGenState((prev) => ({
+          ...prev,
+          generatedAudioUrl: audioUrl,
+          isGenerating: false,
+        }))
+      }
 
       // Reset audio player to allow re-play
       setAudioPlayerKey((prev) => prev + 1)
@@ -400,7 +550,7 @@ export default function CreatePage() {
       return
     }
 
-    await proceedWithRegistration()
+    await proceedWithRegistration(userId)
   }
 
   const handleGenerateAnother = () => {
@@ -442,7 +592,7 @@ export default function CreatePage() {
   return (
     <div className="min-h-screen bg-[#fdfff8] text-[#1b1b1b] py-12 px-4">
       <div className="max-w-2xl mx-auto">
-        <DemoBanner />
+        {DEMO_MODE && <DemoBanner />}
 
         {/* Header */}
         <div className="mb-12">
@@ -506,7 +656,9 @@ export default function CreatePage() {
                 </label>
               </div>
               <p className="text-xs text-[#1b1b1b80]">
-                Demo mode: your photo stays on your device. It is not uploaded or analysed.
+                {DEMO_MODE
+                  ? 'Demo mode: your photo stays on your device. It is not uploaded or analysed.'
+                  : 'Your photo is analyzed by AI to generate music. It is not stored.'}
               </p>
 
               {/* Image Preview */}
@@ -525,7 +677,9 @@ export default function CreatePage() {
                 <div className="mt-4 p-4 bg-[#fdfff8] border border-[#1b1b1b] rounded-lg">
                   <div className="flex gap-2 items-center">
                     <div className="w-2 h-2 bg-[#1b1b1b] rounded-full animate-bounce"></div>
-                    <p className="text-sm text-[#1b1b1b]">Demo: loading an example description…</p>
+                    <p className="text-sm text-[#1b1b1b]">
+                      {DEMO_MODE ? 'Demo: loading an example description…' : 'Reading your photo...'}
+                    </p>
                   </div>
                 </div>
               )}
@@ -559,8 +713,10 @@ export default function CreatePage() {
             <div>
               <label className="block text-sm font-semibold mb-3">
                 What style of music?
-                {genState.suggestedStyle && genState.style === genState.suggestedStyle && (
-                  <span className="text-xs text-[#1b1b1b] ml-2">from the same real-run example</span>
+                {genState.suggestedStyle && (DEMO_MODE ? genState.style === genState.suggestedStyle : true) && (
+                  <span className="text-xs text-[#1b1b1b] ml-2">
+                    {DEMO_MODE ? 'from the same real-run example' : '✨ AI suggested'}
+                  </span>
                 )}
               </label>
               <input
@@ -632,7 +788,7 @@ export default function CreatePage() {
               {genState.isGenerating ? (
                 <span className="flex items-center justify-center gap-2">
                   <div className="w-2 h-2 bg-[#fdfff8] rounded-full animate-bounce"></div>
-                  {genState.demoStage || 'Demo: composing…'}
+                  {DEMO_MODE ? genState.demoStage || 'Demo: composing…' : 'Composing your moment...'}
                 </span>
               ) : (
                 'Generate My Moment →'
@@ -644,8 +800,14 @@ export default function CreatePage() {
           <div className="space-y-6">
             {/* Audio Player */}
             <div className="bg-[#fdfff8] border border-[#1b1b1b] rounded-lg p-8 space-y-4">
-              <p className="text-xs font-mono uppercase text-[#1b1b1b80]">Replay · real past result</p>
-              <h2 className="text-2xl font-bold">A real moment from when ekos was live</h2>
+              {genState.replay ? (
+                <>
+                  <p className="text-xs font-mono uppercase text-[#1b1b1b80]">Replay · real past result</p>
+                  <h2 className="text-2xl font-bold">A real moment from when ekos was live</h2>
+                </>
+              ) : (
+                <h2 className="text-2xl font-bold">Your Moment is Ready</h2>
+              )}
               {genState.replay && (
                 <p className="text-sm leading-relaxed text-[#1b1b1b]">
                   This was <span className="font-semibold">not made from your input</span>{' '}— live
@@ -670,6 +832,11 @@ export default function CreatePage() {
                 src={genState.generatedAudioUrl}
                 className="w-full"
               />
+              {!genState.replay && (
+                <p className="text-sm text-[#1b1b1b80]">
+                  AI-generated audio Moment from your description
+                </p>
+              )}
               {genState.replay?.photoDescription && (
                 <p className="text-sm text-[#1b1b1b80]">
                   What ekos saw in that photo: {genState.replay.photoDescription}
@@ -682,10 +849,10 @@ export default function CreatePage() {
               <h2 className="text-2xl font-bold">Register This Moment</h2>
 
               {/* Cover Art Section */}
-              {genState.imagePreviewUrl && (
+              {(DEMO_MODE ? genState.imagePreviewUrl : genState.imageUrl && genState.imagePreviewUrl) && (
                 <div className="space-y-3">
                   <img
-                    src={genState.imagePreviewUrl}
+                    src={genState.imagePreviewUrl ?? undefined}
                     alt="Moment cover"
                     className="w-full h-48 object-cover rounded-lg border border-[#1b1b1b]"
                   />
@@ -702,7 +869,9 @@ export default function CreatePage() {
                       disabled={regState.isRegistering}
                       className="w-4 h-4 rounded"
                     />
-                    <span className="text-sm font-semibold">Use your photo as cover art (it stays on your device)</span>
+                    <span className="text-sm font-semibold">
+                      {DEMO_MODE ? 'Use your photo as cover art (it stays on your device)' : 'Use this photo as cover art'}
+                    </span>
                   </label>
                 </div>
               )}
@@ -725,7 +894,10 @@ export default function CreatePage() {
               {/* AI Origin Disclosure */}
               <div className="bg-[#fdfff8] border border-[#1b1b1b] rounded-lg p-4">
                 <p className="text-sm text-[#1b1b1b]">
-                  <span className="font-semibold">AI-Generated:</span> In the live build, a moment like this was registered on-chain as AI-generated, authored by its creator as a verified human. The moment description and vibe choice were the creator&apos;s contribution.
+                  <span className="font-semibold">AI-Generated:</span>{' '}
+                  {DEMO_MODE
+                    ? "In the live build, a moment like this was registered on-chain as AI-generated, authored by its creator as a verified human. The moment description and vibe choice were the creator's contribution."
+                    : 'This moment will be registered on-chain as AI-generated, authored by you as a verified human. The unique moment description and vibe choice are your creative contribution.'}
                 </p>
               </div>
 
@@ -872,7 +1044,7 @@ export default function CreatePage() {
                     disabled={!regState.title.trim() || regState.isRegistering}
                     className="flex-1 py-4 bg-[#1b1b1b] text-[#fdfff8] font-semibold rounded-lg hover:opacity-80 disabled:opacity-50 transition-colors"
                   >
-                    {regState.isRegistering ? 'Demo: registering…' : 'Register this Moment →'}
+                    {regState.isRegistering ? (DEMO_MODE ? 'Demo: registering…' : 'Registering...') : 'Register this Moment →'}
                   </button>
                 )}
                 <button
