@@ -37,7 +37,12 @@ export async function POST(request: NextRequest) {
   try {
     const body: VerifyRequest = await request.json()
 
-    const { address: providedAddress, message, signature, orb_verified = false, username, devMode = false } = body
+    const { address: providedAddress, message, signature, orb_verified = false, username } = body
+
+    // The caller must never be able to switch off signature verification. The original build
+    // trusted a `devMode` flag in the request body; now it only counts when this deployment
+    // itself runs in dev mode (off in production).
+    const devMode = body.devMode === true && process.env.NEXT_PUBLIC_DEV_MODE === 'true'
 
     if (!providedAddress || !message || !signature) {
       return NextResponse.json(

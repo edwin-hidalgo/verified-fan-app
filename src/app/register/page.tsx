@@ -1,10 +1,12 @@
 'use client'
 
-import { useRequireAuth } from '@/lib/hooks/useAuthedUser'
+import { useAuthedUser } from '@/lib/hooks/useAuthedUser'
 import { TrackUploadForm } from '@/components/track-upload-form'
+import { DemoBanner } from '@/components/DemoBanner'
 
 export default function RegisterPage() {
-  const { user, isLoading } = useRequireAuth()
+  // Demo mode: anyone can walk through the form, so there is no sign-in redirect here.
+  const { user, isLoading } = useAuthedUser()
 
   if (isLoading) {
     return (
@@ -18,21 +20,23 @@ export default function RegisterPage() {
     )
   }
 
-  if (!user) {
-    return null // useRequireAuth will redirect
-  }
+  const name = user?.world_username || (user?.world_wallet_address ? user.world_wallet_address.slice(0, 10) + '...' : null)
 
   return (
     <div className="min-h-screen bg-black text-white py-12 px-4">
       <div className="max-w-3xl mx-auto">
+        <DemoBanner tone="dark" />
+
         <div className="mb-12">
           <h1 className="text-4xl font-bold mb-2">Register Your Music</h1>
-          <p className="text-gray-400">
-            Welcome, <span className="font-semibold">{user.world_username || user.world_wallet_address.slice(0, 10) + '...'}</span>
-          </p>
+          {name && (
+            <p className="text-gray-400">
+              Welcome, <span className="font-semibold">{name}</span>
+            </p>
+          )}
         </div>
 
-        <TrackUploadForm userId={user.id} username={user.world_username} />
+        <TrackUploadForm username={user?.world_username} />
       </div>
     </div>
   )

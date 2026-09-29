@@ -1,5 +1,6 @@
 'use client'
 
+import { STORY_EXPLORER_IPA } from '@/lib/demo'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/card'
@@ -384,7 +385,7 @@ export default function TrackDetailPage() {
 
                 <div className="space-y-3">
                   <a
-                    href={`https://aeneid.storyscan.xyz/ipa/${track.story_ip_id}`}
+                    href={`${STORY_EXPLORER_IPA}${track.story_ip_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block border border-[#1b1b1b] rounded-lg p-3 hover:bg-[#1b1b1b] hover:text-[#fdfff8] transition"
