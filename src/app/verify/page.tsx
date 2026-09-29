@@ -3,11 +3,14 @@
 import { MiniKit } from '@worldcoin/minikit-js'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { WorldAppNote } from '@/components/DemoBanner'
 
 export default function VerifyPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [outsideWorldApp, setOutsideWorldApp] = useState(false)
   const devMode = process.env.NEXT_PUBLIC_DEV_MODE === 'true'
 
   const handleWorldIDVerify = async () => {
@@ -18,7 +21,7 @@ export default function VerifyPage() {
       // Check if MiniKit is available (inside World App)
       if (!MiniKit.isInstalled()) {
         if (!devMode) {
-          setError('World App not detected. Please open this app in World App.')
+          setOutsideWorldApp(true)
           setIsLoading(false)
           return
         }
@@ -173,6 +176,15 @@ export default function VerifyPage() {
         </div>
 
         {/* Error message */}
+        {outsideWorldApp && (
+          <div className="w-full space-y-3">
+            <WorldAppNote action="Creator verification" />
+            <Link href="/create" className="inline-block text-sm font-semibold underline underline-offset-2 hover:opacity-70">
+              Try the create demo in your browser →
+            </Link>
+          </div>
+        )}
+
         {error && (
           <div className="w-full border border-[#ff2e00] rounded-lg p-4 text-[#ff2e00] text-sm">
             <p className="font-semibold mb-1">Verification Error</p>
