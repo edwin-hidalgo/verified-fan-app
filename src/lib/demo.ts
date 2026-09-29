@@ -6,9 +6,20 @@
  * those services they now replay a REAL result this flow produced while it was live. Nothing
  * here is invented: each record below was copied from the production `tracks` table, and its
  * Story IP ID resolves on the Aeneid testnet. The UI must always label a replay as a replay.
+ *
+ * THE SWITCH. Demo mode is ON unless the deployment sets NEXT_PUBLIC_DEMO_MODE=false.
+ * To turn the live flows back on (Vercel → Settings → Environment Variables):
+ *   1. set NEXT_PUBLIC_DEMO_MODE=false
+ *   2. add back REPLICATE_API_TOKEN, ANTHROPIC_API_KEY, PINATA_JWT, STORY_SERVICE_WALLET_PRIVATE_KEY
+ *      (values are in ~/Documents/verified-fan-app/.env.local)
+ *   3. Redeploy — NEXT_PUBLIC_ values are baked in at build time, so a setting change alone
+ *      does nothing until the next deploy.
+ * Step 2 is deliberate: flipping the switch by mistake cannot spend money on its own.
+ * Before re-enabling register, fix its upload: Vercel rejects request bodies over 4.5 MB,
+ * and the form allows 20 MB (HANDOFF ledger #43).
  */
 
-export const DEMO_MODE = true
+export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE !== 'false'
 
 export const PAUSED_MESSAGE =
   'Live generation and registration were paused after the hackathon. This build runs in demo mode.'

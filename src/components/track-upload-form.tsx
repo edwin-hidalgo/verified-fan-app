@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { MiniKit } from '@worldcoin/minikit-js'
 import { WorldAppNote } from '@/components/DemoBanner'
 import { ReplayRecordCard } from '@/components/ReplayRecordCard'
-import { demoPause, REGISTER_REPLAY } from '@/lib/demo'
+import { DEMO_MODE, demoPause, REGISTER_REPLAY } from '@/lib/demo'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -36,10 +37,12 @@ interface TrackFormData {
 }
 
 interface TrackUploadFormProps {
+  userId?: string
   username?: string
 }
 
-export function TrackUploadForm({ username }: TrackUploadFormProps) {
+export function TrackUploadForm({ userId, username }: TrackUploadFormProps) {
+  const router = useRouter()
   // Demo mode: the flow ends on a real past registration instead of a new one
   const [demoComplete, setDemoComplete] = useState(false)
   const [outsideWorldApp, setOutsideWorldApp] = useState(false)
@@ -143,8 +146,63 @@ export function TrackUploadForm({ username }: TrackUploadFormProps) {
       return
     }
 
-    // Demo mode: IPFS upload and Story registration are paused. The file never leaves the
-    // browser; the original upload + registration call lives in git history (281c6b4).
+    // Live mode: the original upload + IPFS + Story registration.
+    if (!DEMO_MODE) {
+      try {
+        setIsLoading(true)
+        setError(null)
+
+        // Prepare form data
+        const submitFormData = new FormData()
+        submitFormData.append('audio_file', formData.audio_file!)
+        submitFormData.append(
+          'metadata',
+          JSON.stringify({
+            title: formData.title,
+            artist_name: formData.artist_name,
+            ai_origin: formData.ai_origin,
+            genre: formData.genre || undefined,
+            release_date: formData.release_date || undefined,
+            duration_seconds: formData.duration_seconds || undefined,
+            isrc: formData.isrc || undefined,
+            splits: formData.splits,
+            ai_training_allowed: formData.ai_training_allowed,
+            ai_training_price_usd: formData.ai_training_price_usd,
+            sync_allowed: formData.sync_allowed,
+            sync_price_usd: formData.sync_price_usd,
+            commercial_use_allowed: formData.commercial_use_allowed,
+            commercial_use_revenue_share_pct: formData.commercial_use_revenue_share_pct,
+          })
+        )
+
+        // Submit to registration endpoint
+        const response = await fetch('/api/tracks', {
+          method: 'POST',
+          headers: {
+            'x-user-id': userId ?? '',
+          },
+          body: submitFormData,
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Registration failed')
+        }
+
+        const result = await response.json()
+        console.log('[track-form] Registration successful:', result)
+
+        // Redirect to track detail page
+        router.push(`/track/${result.trackId}`)
+      } catch (err) {
+        console.error('[track-form] Submit error:', err)
+        setError(err instanceof Error ? err.message : 'Registration failed')
+        setIsLoading(false)
+      }
+      return
+    }
+
+    // Demo mode: IPFS upload and Story registration are paused, and the file never leaves the browser.
     setIsLoading(true)
     setError(null)
     await demoPause(1200)
@@ -510,7 +568,9 @@ export function TrackUploadForm({ username }: TrackUploadFormProps) {
             <div className="bg-blue-900/20 border border-blue-700/50 rounded p-4 text-sm text-blue-300">
               <p className="font-semibold mb-1">Registration Process</p>
               <p>
-                In the live build, clicking register uploaded your audio to IPFS, created license metadata, and registered your work as an IP Asset on Story Protocol&apos;s Aeneid testnet. In demo mode nothing is uploaded; you&apos;ll see a real past registration instead.
+                {DEMO_MODE
+                  ? "In the live build, clicking register uploaded your audio to IPFS, created license metadata, and registered your work as an IP Asset on Story Protocol's Aeneid testnet. In demo mode nothing is uploaded; you'll see a real past registration instead."
+                  : 'Clicking register will upload your audio to IPFS, create license metadata, and register your work as an IP Asset on Story Protocol Aeneid testnet.'}
               </p>
             </div>
           </div>

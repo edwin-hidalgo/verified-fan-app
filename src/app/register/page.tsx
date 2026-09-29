@@ -1,12 +1,15 @@
 'use client'
 
-import { useAuthedUser } from '@/lib/hooks/useAuthedUser'
+import { useAuthedUser, useRequireAuth } from '@/lib/hooks/useAuthedUser'
+import { DEMO_MODE } from '@/lib/demo'
 import { TrackUploadForm } from '@/components/track-upload-form'
 import { DemoBanner } from '@/components/DemoBanner'
 
+// Demo mode lets anyone walk the form; live mode keeps the original sign-in redirect.
+const useGate = DEMO_MODE ? useAuthedUser : useRequireAuth
+
 export default function RegisterPage() {
-  // Demo mode: anyone can walk through the form, so there is no sign-in redirect here.
-  const { user, isLoading } = useAuthedUser()
+  const { user, isLoading } = useGate()
 
   if (isLoading) {
     return (
@@ -20,12 +23,16 @@ export default function RegisterPage() {
     )
   }
 
+  if (!DEMO_MODE && !user) {
+    return null // useRequireAuth will redirect
+  }
+
   const name = user?.world_username || (user?.world_wallet_address ? user.world_wallet_address.slice(0, 10) + '...' : null)
 
   return (
     <div className="min-h-screen bg-black text-white py-12 px-4">
       <div className="max-w-3xl mx-auto">
-        <DemoBanner tone="dark" />
+        {DEMO_MODE && <DemoBanner tone="dark" />}
 
         <div className="mb-12">
           <h1 className="text-4xl font-bold mb-2">Register Your Music</h1>
@@ -36,7 +43,7 @@ export default function RegisterPage() {
           )}
         </div>
 
-        <TrackUploadForm username={user?.world_username} />
+        <TrackUploadForm userId={user?.id} username={user?.world_username} />
       </div>
     </div>
   )
